@@ -173,11 +173,11 @@ jobs:
               # fastlane ships preinstalled on GitHub macOS runners; add a Gemfile to pin it.
               run: fastlane --version
 
-            # fastlane regenerates the ad-hoc profile via the ASC API key — force-refreshed so
-            # it includes every currently-registered device (incl. ones Firebase auto-registers)
+            # fastlane regenerates the development profile via the ASC API key — force-refreshed
+            # so it includes every currently-registered device (incl. ones Firebase auto-registers)
             # — then gym builds the IPA. A new tester device is picked up on the next run with
             # no manual profile juggling. See fastlane/Fastfile.
-            - name: Build ad-hoc IPA
+            - name: Build development-signed IPA
               if: github.ref_name == 'develop'
               id: build
               env:
@@ -194,15 +194,24 @@ jobs:
                   path: ${{ steps.build.outputs.ipa_path }}
                   if-no-files-found: error
 
+            # The wzieba action is a Docker *container* action → Linux-only, so it can't run
+            # on the macOS runner (unlike the Android job). Upload via the Firebase CLI
+            # instead, authenticating with the same service-account JSON.
             - name: Distribute to Firebase App Distribution
               if: github.ref_name == 'develop'
-              uses: wzieba/Firebase-Distribution-Github-Action@v1
-              with:
-                  appId: ${{ secrets.FIREBASE_APP_ID_IOS }}
-                  serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-                  groups: ${{ vars.FIREBASE_TESTER_GROUPS || 'testers' }}
-                  file: ${{ steps.build.outputs.ipa_path }}
-                  releaseNotes: "develop ${{ github.sha }} (run ${{ github.run_number }})"
+              env:
+                  FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID_IOS }}
+                  FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+                  FIREBASE_GROUPS: ${{ vars.FIREBASE_TESTER_GROUPS || 'testers' }}
+                  IPA_PATH: ${{ steps.build.outputs.ipa_path }}
+              run: |
+                  printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+                  export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+                  npm install -g firebase-tools
+                  firebase appdistribution:distribute "$IPA_PATH" \
+                      --app "$FIREBASE_APP_ID" \
+                      --groups "$FIREBASE_GROUPS" \
+                      --release-notes "develop ${{ github.sha }} (run ${{ github.run_number }})"
 
             # --- main: export for the App Store and upload (upload is TODO) -----------
             - name: Publish to App Store Connect

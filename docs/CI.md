@@ -5,7 +5,7 @@ GitHub Actions builds signed **release** artifacts for both platforms and ships 
 
 | Push to | iOS | Android | Target | Status |
 |---|---|---|---|---|
-| `develop` | ad-hoc IPA (fastlane) | APK | **Firebase App Distribution** | ✅ working |
+| `develop` | dev-signed IPA (fastlane) | APK | **Firebase App Distribution** | ✅ working |
 | `main` | stub (TODO) | AAB | **App Store / Google Play** | ⚠️ upload is TODO (see [below](#later--store-releases-main-branch)) |
 
 On `main` the Android **AAB** is built (compile + sign gate); the iOS build and both
@@ -199,9 +199,13 @@ api_key)`. Register the `bzh.aee.vente` App ID (with the entitlement) first.
   `release` signing config to the generated `build.gradle`, reading the keystore creds from
   `ORG_GRADLE_PROJECT_AEE_UPLOAD_*` env. With no keystore configured it falls back to debug
   signing, so local builds need no setup.
-- **iOS signing**: the cert is imported into a temporary keychain; [fastlane](../fastlane/Fastfile)
-  `sigh --force` regenerates the ad-hoc profile (all registered devices) via the ASC API key
-  and `gym` builds the IPA — so newly added tester devices need no manual profile work.
+- **iOS signing**: the **Apple Development** cert is imported into a temporary keychain;
+  [fastlane](../fastlane/Fastfile) `sigh --force` regenerates the **development** profile (all
+  registered devices) via the ASC API key and `gym` builds the IPA — so newly added tester
+  devices need no manual profile work.
+- **iOS distribution**: the Android job uploads with the `wzieba` Firebase action, but that's a
+  Docker *container* action (Linux-only), so the macOS iOS job uploads with the **Firebase CLI**
+  (`firebase appdistribution:distribute`, same service-account JSON) instead.
 - **Caching**: Gradle user home (`setup-gradle`), CocoaPods, and bun/`node_modules` (keyed on
   `bun.lock`). The first run is cold; later runs are much faster.
 
