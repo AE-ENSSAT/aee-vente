@@ -52,6 +52,10 @@ module.exports = () => ({
 		},
 		android: {
 			package: BUNDLE_ID,
+			adaptiveIcon: {
+				foregroundImage: './assets/images/adaptive-icon.png',
+				backgroundColor: '#ffffff',
+			},
 			// See ios.buildNumber — kept in sync so both stores get monotonic builds.
 			versionCode: Number(process.env.BUILD_NUMBER ?? 1),
 			edgeToEdgeEnabled: true,
