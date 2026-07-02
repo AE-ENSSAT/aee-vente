@@ -3,19 +3,38 @@
  * `modules/sumup-tap-to-pay-sdk` (autolinked), so it needs no entry here beyond
  * the native build config below.
  */
+const fs = require('node:fs');
+const path = require('node:path');
+
+// --- App variant -----------------------------------------------------------
+// A separate `.dev` identity lets the test build (develop → Firebase) sit on a
+// device ALONGSIDE the production build (main → stores) with no install conflict.
+// CI sets APP_VARIANT=dev on `develop`; unset (prod) keeps the plain id.
+// NOTE: the `.dev` id needs its OWN provisioning — see docs/CI.md ("App variants").
+const IS_DEV = process.env.APP_VARIANT === 'dev';
+const BUNDLE_ID = IS_DEV ? 'bzh.aee.vente.dev' : 'bzh.aee.vente';
+const APP_NAME = IS_DEV ? 'AEE Vente Dev' : 'AEE Vente';
+// Drop an `icon-dev.png` next to icon.png to visually distinguish dev; otherwise
+// the dev build reuses the shared icon (no broken build if the file is absent).
+const DEV_ICON = './assets/images/icon-dev.png';
+const ICON =
+	IS_DEV && fs.existsSync(path.resolve(__dirname, DEV_ICON))
+		? DEV_ICON
+		: './assets/images/icon.png';
+
 module.exports = () => ({
 	expo: {
-		name: 'AEE Vente',
+		name: APP_NAME,
 		slug: 'aee-vente',
 		version: '1.0.0',
 		orientation: 'portrait',
-		icon: './assets/images/icon.png',
+		icon: ICON,
 		scheme: 'aeevente',
 		userInterfaceStyle: 'automatic',
 		newArchEnabled: true,
 		ios: {
 			supportsTablet: false,
-			bundleIdentifier: 'bzh.aee.vente',
+			bundleIdentifier: BUNDLE_ID,
 			// CI sets BUILD_NUMBER (github.run_number) so each distributed build is
 			// distinct; defaults to '1' for local builds.
 			buildNumber: process.env.BUILD_NUMBER ?? '1',
@@ -32,7 +51,7 @@ module.exports = () => ({
 			},
 		},
 		android: {
-			package: 'bzh.aee.vente',
+			package: BUNDLE_ID,
 			// See ios.buildNumber — kept in sync so both stores get monotonic builds.
 			versionCode: Number(process.env.BUILD_NUMBER ?? 1),
 			edgeToEdgeEnabled: true,

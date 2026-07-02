@@ -1,8 +1,38 @@
 # CI/CD — build & distribute
 
-On every push to `main` (and via the **Run workflow** button), GitHub Actions builds a
-signed **release** APK and IPA and uploads both to **Firebase App Distribution**. See
-[.github/workflows/build-and-distribute.yml](../.github/workflows/build-and-distribute.yml).
+GitHub Actions builds signed **release** artifacts for both platforms and ships them
+**per branch** (see [.github/workflows/build-and-distribute.yml](../.github/workflows/build-and-distribute.yml)):
+
+| Push to | iOS | Android | Target | Status |
+|---|---|---|---|---|
+| `develop` | ad-hoc IPA (fastlane) | APK | **Firebase App Distribution** | ✅ working |
+| `main` | stub (TODO) | AAB | **App Store / Google Play** | ⚠️ upload is TODO (see [below](#later--store-releases-main-branch)) |
+
+On `main` the Android **AAB** is built (compile + sign gate); the iOS build and both
+store-upload steps are stubbed — pushing to `main` succeeds with a warning until you wire
+them up.
+
+### App variants (`.dev` vs production)
+
+`develop` and `main` build **different app identities** so a test build and the production
+build can be installed on the same device without conflict:
+
+| Branch | `APP_VARIANT` | id (iOS bundle / Android package) | name |
+|---|---|---|---|
+| `develop` | `dev` | `bzh.aee.vente.dev` | AEE Vente Dev |
+| `main` | *(unset)* | `bzh.aee.vente` | AEE Vente |
+
+This is driven by `APP_VARIANT` in [app.config.js](../app.config.js). Because the id is bound
+to per-app provisioning, the **`.dev` id needs its own** copies of the id-bound things, and
+the production id needs the plain ones:
+
+- **Apple**: a provisioning profile **per bundle id**, each with the `proximity-reader`
+  entitlement enabled for that App ID. (One **Apple Distribution certificate** covers both.)
+- **SumUp**: the `.dev` App ID must be registered with SumUp for **Tap to Pay** attestation
+  (the affiliate key / access token are account-level and shared).
+- **Firebase**: one Firebase app per id. Since only `develop` distributes via Firebase, the
+  `FIREBASE_APP_ID_*` secrets are the **`.dev`** apps.
+- Optional: drop `assets/images/icon-dev.png` to give the dev build a distinct icon.
 
 It runs on **free** standard runners — `ubuntu-latest` (Android) and `macos-15` (iOS). Both
 are free and unlimited on **public** repos, so the whole pipeline costs nothing. The repo
@@ -10,7 +40,7 @@ must be **public** and the SumUp submodule must be **public** (no CI token is co
 
 Nothing runs until the secrets below are set. Secrets are **not** exposed to pull requests
 from forks, so keeping them here is safe for a public repo — the workflow only builds on
-direct pushes to `main`.
+direct pushes to `develop` / `main`.
 
 ---
 
@@ -19,10 +49,10 @@ direct pushes to `main`.
 ### 1. Firebase App Distribution
 
 1. Create (or reuse) a Firebase project.
-2. Register **two apps** in it:
-   - Android package `bzh.aee.vente`
-   - iOS bundle ID `bzh.aee.vente`
-   Copy each **App ID** (looks like `1:1234567890:android:abcdef…`).
+2. Register **two apps** in it, using the **`.dev`** ids (that's what `develop` distributes):
+   - Android package `bzh.aee.vente.dev`
+   - iOS bundle ID `bzh.aee.vente.dev`
+   Copy each **App ID** (looks like `1:1234567890:android:abcdef…`) → `FIREBASE_APP_ID_*`.
 3. In **App Distribution**, create a tester group (default name used by the workflow:
    `testers`) and add testers.
 4. Create a service account for uploads:
@@ -30,34 +60,53 @@ direct pushes to `main`.
    Then in the Google Cloud console grant that service account the
    **Firebase App Distribution Admin** role.
 
-### 2. Android upload keystore
+### 2. Android upload keystores (two — dev and prod)
 
-Generate once and keep the `.jks` safe (losing it means testers must uninstall/reinstall):
+The keystores are **split**: a **dev** key signs the Firebase test builds, and a separate
+**prod** key is your Google Play upload key (kept out of the more frequently run `develop`
+pipeline). A keystore isn't tied to a package name, so each just needs to be **stable**.
 
 ```bash
-keytool -genkeypair -v -keystore aee-upload.jks -alias aee-upload \
+# dev (Firebase) — needed now
+keytool -genkeypair -v -keystore aee-dev.jks -alias aee-dev \
   -keyalg RSA -keysize 2048 -validity 10000
-base64 -i aee-upload.jks | pbcopy   # → ANDROID_KEYSTORE_BASE64
+base64 -i aee-dev.jks | pbcopy    # → ANDROID_KEYSTORE_BASE64_DEV
+
+# prod (Play) — only needed once you push to main / wire Play
+keytool -genkeypair -v -keystore aee-prod.jks -alias aee-prod \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -i aee-prod.jks | pbcopy   # → ANDROID_KEYSTORE_BASE64_PROD
 ```
 
-### 3. iOS distribution certificate + provisioning profile
+> Keep both `.jks` safe. For Play, this prod key is the **upload key** you register in the
+> Play Console (Google holds the real app-signing key). Losing the **dev** key just means
+> testers reinstall once.
 
-Using your Apple team (the one with the `proximity-reader.payment.acceptance` entitlement):
+### 3. iOS certificate + App Store Connect API key (no manual profile)
+
+Signing is **hands-off**: [fastlane/Fastfile](../fastlane/Fastfile) regenerates the ad-hoc
+provisioning profile on every build via an ASC API key, so you never create, export, or
+refresh a `.mobileprovision` yourself. You provide the cert and the API key:
 
 1. Create an **Apple Distribution** certificate, export it from Keychain Access as a
-   `.p12` (set a password).
-2. Create an **Ad Hoc** distribution provisioning profile for `bzh.aee.vente` that includes
-   the entitlement **and every tester device's UDID** (ad-hoc/development installs only launch
-   on registered devices). Download the `.mobileprovision`.
-3. Note the **profile name** (as shown in the Developer portal) and your **Team ID**.
+   `.p12` (set a password). One cert covers both ids. → `IOS_DIST_CERT_BASE64` / `..._PASSWORD`.
+2. Register the App ID **`bzh.aee.vente.dev`** and enable the **`proximity-reader`
+   entitlement** on it. (No profile to make — fastlane `sigh` creates/refreshes it.)
+3. Create an **App Store Connect API key** (Users and Access → Integrations → App Store
+   Connect API) with the **App Manager** role. Download the `.p8` **once**.
+4. Note your **Team ID**.
 
 ```bash
-base64 -i dist_cert.p12          | pbcopy   # → IOS_DIST_CERT_BASE64
-base64 -i aee_adhoc.mobileprovision | pbcopy # → IOS_PROVISIONING_PROFILE_BASE64
+base64 -i dist_cert.p12       | pbcopy   # → IOS_DIST_CERT_BASE64
+base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy # → ASC_API_KEY_P8
+# key id (ASC_KEY_ID) and issuer id (ASC_ISSUER_ID) are shown next to the key
 ```
 
-> If you distribute with a **development** profile instead of ad-hoc, change the
-> `method` in the workflow's `ExportOptions.plist` from `release-testing` to `development`.
+> **Auto-UDID, now truly hands-off**: a tester taps the Firebase invite on their iPhone and
+> installs a small profile — Firebase captures their UDID. Give **Firebase the *same* ASC API
+> key** (App Distribution → iOS device registration) and it registers the UDID with Apple.
+> On the next `develop` build, fastlane `sigh --force` regenerates the ad-hoc profile with
+> that device already in it. No profile files, no secret to refresh — just re-run.
 
 ---
 
@@ -74,17 +123,22 @@ Add under **Settings → Secrets and variables → Actions**.
 | `SUMUP_MAVEN_USER` | SumUp private Maven username (Android build) |
 | `SUMUP_MAVEN_PASSWORD` | SumUp private Maven password (Android build) |
 | `FIREBASE_SERVICE_ACCOUNT` | Full JSON of the service-account key from step 1.4 |
-| `FIREBASE_APP_ID_ANDROID` | Firebase App ID for the Android app |
-| `FIREBASE_APP_ID_IOS` | Firebase App ID for the iOS app |
-| `ANDROID_KEYSTORE_BASE64` | base64 of the upload keystore |
-| `ANDROID_KEYSTORE_PASSWORD` | keystore (store) password |
-| `ANDROID_KEY_ALIAS` | key alias (e.g. `aee-upload`) |
-| `ANDROID_KEY_PASSWORD` | key password |
+| `FIREBASE_APP_ID_ANDROID` | Firebase App ID for the **`.dev`** Android app |
+| `FIREBASE_APP_ID_IOS` | Firebase App ID for the **`.dev`** iOS app |
+| `ANDROID_KEYSTORE_BASE64_DEV` | base64 of the **dev** keystore |
+| `ANDROID_KEYSTORE_PASSWORD_DEV` | dev keystore (store) password |
+| `ANDROID_KEY_ALIAS_DEV` | dev key alias (e.g. `aee-dev`) |
+| `ANDROID_KEY_PASSWORD_DEV` | dev key password |
 | `IOS_DIST_CERT_BASE64` | base64 of the `.p12` distribution certificate |
 | `IOS_DIST_CERT_PASSWORD` | password set when exporting the `.p12` |
-| `IOS_PROVISIONING_PROFILE_BASE64` | base64 of the ad-hoc `.mobileprovision` |
 | `IOS_TEAM_ID` | Apple Developer Team ID (10 chars) |
-| `IOS_PROFILE_NAME` | Provisioning profile name (as in the Developer portal) |
+| `ASC_KEY_ID` | App Store Connect API key id |
+| `ASC_ISSUER_ID` | App Store Connect API issuer id |
+| `ASC_API_KEY_P8` | base64 of the ASC API `.p8` key |
+
+Needed **only when you push to `main`** (Play upload key — see [stores](#later--store-releases-main-branch)):
+`ANDROID_KEYSTORE_BASE64_PROD`, `ANDROID_KEYSTORE_PASSWORD_PROD`, `ANDROID_KEY_ALIAS_PROD`,
+`ANDROID_KEY_PASSWORD_PROD`. (Until set, an Android build on `main` fails at signing.)
 
 `FIREBASE_APP_ID_*` are not sensitive and may be stored as **repository variables**
 instead of secrets if you prefer.
@@ -97,8 +151,36 @@ instead of secrets if you prefer.
 
 ---
 
+## Later — store releases (`main` branch)
+
+Pushing to `main` already builds the release **AAB** (Android); the iOS build and both store
+uploads are stubbed. To finish them, add the bits below and replace the `Publish to Google
+Play` / `Publish to App Store Connect` steps in the workflow.
+
+**Google Play** (Android AAB → Play):
+
+| Secret | What it is |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64_PROD` (+ `_PASSWORD_PROD`, `ALIAS_PROD`, `KEY_PASSWORD_PROD`) | the prod upload key (from setup step 2) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT` | JSON key for a Play Console service account with release permissions |
+
+Then swap the stub for e.g. `r0adkll/upload-google-play` pointing at
+`android/app/build/outputs/bundle/release/app-release.aab`. Note: the app must first be
+created in the Play Console and the **first** AAB uploaded manually.
+
+**App Store** (iOS → TestFlight / App Store):
+
+No new secrets — reuse `IOS_DIST_CERT_*`, `IOS_TEAM_ID`, and the **same** `ASC_*` API key.
+Add a fastlane `release` lane mirroring `adhoc` but with `sigh(adhoc: false)` (an App Store
+profile) and `build_app(export_method: "app-store")`, then `upload_to_testflight(api_key:
+api_key)`. Register the `bzh.aee.vente` App ID (with the entitlement) first.
+
+---
+
 ## How it works (brief)
 
+- **Branch routing**: push to `develop` → Firebase App Distribution; push to `main` → stores
+  (upload TODO). Steps are gated with `if: github.ref_name == '…'`.
 - **Prebuild**: `ios/`/`android/` are gitignored (Expo CNG), so each job runs
   `expo prebuild` first. `BUILD_NUMBER=${{ github.run_number }}` feeds
   `ios.buildNumber` / `android.versionCode` in [app.config.js](../app.config.js) so every
@@ -107,16 +189,20 @@ instead of secrets if you prefer.
   `release` signing config to the generated `build.gradle`, reading the keystore creds from
   `ORG_GRADLE_PROJECT_AEE_UPLOAD_*` env. With no keystore configured it falls back to debug
   signing, so local builds need no setup.
-- **iOS signing**: the cert is imported into a temporary keychain and the profile installed;
-  `xcodebuild archive`/`-exportArchive` produce a manually-signed IPA.
+- **iOS signing**: the cert is imported into a temporary keychain; [fastlane](../fastlane/Fastfile)
+  `sigh --force` regenerates the ad-hoc profile (all registered devices) via the ASC API key
+  and `gym` builds the IPA — so newly added tester devices need no manual profile work.
 - **Caching**: Gradle user home (`setup-gradle`), CocoaPods, and bun/`node_modules` (keyed on
   `bun.lock`). The first run is cold; later runs are much faster.
 
 ## Troubleshooting
 
-- **iOS "no matching provisioning profile"** — the profile's bundle ID, team, or entitlement
-  doesn't match, or the profile name in `IOS_PROFILE_NAME` is wrong.
-- **App installs but won't open (iOS)** — the test device's UDID isn't in the ad-hoc profile.
+- **iOS `sigh` can't create the profile** — the App ID `bzh.aee.vente.dev` isn't registered
+  (with the `proximity-reader` entitlement), or the ASC API key lacks the **App Manager** role.
+- **iOS build fails signing / cert not found** — `IOS_DIST_CERT_BASE64`/`_PASSWORD` wrong, or
+  the Apple Distribution cert the `.p12` contains was revoked.
+- **App installs but won't open (iOS)** — the tester's device wasn't registered before the
+  build. Accept the Firebase invite, then re-run the workflow so `sigh` bakes it in.
 - **Firebase "group does not exist"** — create the `testers` group (or set
   `FIREBASE_TESTER_GROUPS`).
 - **Android Maven 401/500** — check `SUMUP_MAVEN_USER`/`SUMUP_MAVEN_PASSWORD`.
