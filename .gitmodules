@@ -1,0 +1,4 @@
+[submodule "modules/sumup-tap-to-pay-sdk-react-native"]
+	path = modules/sumup-tap-to-pay-sdk-react-native
+	url = https://github.com/AE-ENSSAT/sumup-tap-to-pay-sdk-react-native.git
+	branch = main

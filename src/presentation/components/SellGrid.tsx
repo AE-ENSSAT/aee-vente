@@ -1,0 +1,86 @@
+import { ScrollView, StyleSheet, View } from 'react-native';
+import type { Product, SellGrid as SellGridModel } from '@/src/domain/models';
+import { APP_MARGIN } from '../theme';
+import { ProductTile } from './ProductTile';
+
+const GAP = 10;
+
+interface Props {
+	grid: SellGridModel;
+	onSelectProduct: (product: Product) => void;
+	/** Long-press a tile to open its detail sheet. */
+	onLongPressProduct?: (product: Product) => void;
+}
+
+interface Cell {
+	key: string;
+	product: Product | null;
+}
+
+interface Row {
+	key: string;
+	cells: Cell[];
+}
+
+const cellKey = (x: number, y: number) => `${x},${y}`;
+
+/**
+ * Renders a sell grid as a fixed {@link SellGridModel.columns} × {@link SellGridModel.rows}
+ * matrix of square cells. Each product sits at its own (x, y); any cell without a product is
+ * left empty. Cells split the row width evenly (`flex: 1` + `aspectRatio: 1`), so tiles stay
+ * square at any column count and the grid scrolls vertically when taller than the screen.
+ */
+export function SellGrid({ grid, onSelectProduct, onLongPressProduct }: Props) {
+	// Index the placed products by cell for O(1) lookup while building the matrix.
+	const byCell = new Map<string, Product>();
+	for (const item of grid.items) {
+		byCell.set(cellKey(item.x, item.y), item.product);
+	}
+
+	const rows: Row[] = [];
+	for (let y = 0; y < grid.rows; y++) {
+		const cells: Cell[] = [];
+		for (let x = 0; x < grid.columns; x++) {
+			cells.push({
+				key: cellKey(x, y),
+				product: byCell.get(cellKey(x, y)) ?? null,
+			});
+		}
+		rows.push({ key: `row-${y}`, cells });
+	}
+
+	return (
+		<ScrollView
+			style={styles.scroll}
+			contentContainerStyle={styles.content}
+		>
+			{rows.map((row) => (
+				<View key={row.key} style={styles.row}>
+					{row.cells.map((cell) => (
+						<View key={cell.key} style={styles.cell}>
+							{cell.product ? (
+								<ProductTile
+									product={cell.product}
+									onPress={onSelectProduct}
+									onLongPress={onLongPressProduct}
+								/>
+							) : null}
+						</View>
+					))}
+				</View>
+			))}
+		</ScrollView>
+	);
+}
+
+const styles = StyleSheet.create({
+	// flex:1 so the grid fills the space below the pinned title + carousel and
+	// scrolls internally, instead of growing and squashing them.
+	scroll: { flex: 1 },
+	// Small paddingTop so the top row's count badges (which overhang the tile by 4px)
+	// aren't clipped at the grid's top edge. The persistent gap below the carousel is
+	// still the bar's own paddingBottom.
+	content: { padding: APP_MARGIN, paddingTop: 8, gap: GAP },
+	row: { flexDirection: 'row', gap: GAP },
+	cell: { flex: 1, aspectRatio: 1 },
+});

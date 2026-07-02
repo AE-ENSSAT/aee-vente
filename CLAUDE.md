@@ -1,0 +1,185 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+**AEE Vente** is an Expo (React Native) point-of-sale demo app plus a reusable Expo
+local module that wraps the **SumUp** payment SDKs — **Tap to Pay** and the **Bluetooth
+card reader** — behind one identical JS API for both iOS and Android. The app is a small
+layered POS demo — a login screen plus a **sell page** (product grid, category carousel,
+basket, checkout) — that reaches payments through a `PaymentService` abstraction over the
+module. The reusable substance lives in the module; the app's own structure is in
+**App architecture** below.
+
+The module is a **git submodule** at `modules/sumup-tap-to-pay-sdk-react-native`
+(repo `AE-ENSSAT/sumup-tap-to-pay-sdk-react-native`, branch `main`). It contains the
+unified TS API, both native implementations (Swift + Kotlin), and the Android config
+plugin. (Note: `README.md`'s directory diagram is outdated — it describes an older
+two-submodule layout; the wrapper has since been consolidated into this one submodule.)
+
+## Commands
+
+Package manager is **bun** (`bun.lock`). Tooling is **Biome** (lint + format). There is
+**no test suite**.
+
+```bash
+bun install                       # JS deps
+npx expo run:ios --device         # build + run on a real iPhone (iOS 16+)
+npx expo run:android --device     # build + run on a real Android device (API 30+)
+npx expo prebuild --clean         # regenerate ios/ + android/ and re-run withSumUp.js
+                                  #   (REQUIRED after editing the config plugin or native deps)
+
+bun run lint          # biome check --write   (lint + apply safe fixes)
+bun run format        # biome format --write
+bun run check-lint    # biome check           (no writes — CI-style)
+bun run check-format  # biome format          (no writes)
+```
+
+Biome config ([biome.json](biome.json)): **tab indent, width 4, single quotes**. Match it.
+([app/index.tsx](app/index.tsx) has some pre-existing format deviations unrelated to most
+changes — don't reflexively reformat the whole file.)
+
+Must run on a **real device**: the SumUp iOS xcframework excludes the arm64 simulator
+slice, and both SDKs do device attestation. **Tap to Pay additionally needs a RELEASE
+build with Developer Options/USB debugging OFF**; the Bluetooth reader works in debug.
+
+## App architecture (the Expo app)
+
+Clean layered structure: the UI depends on **interfaces**, and a small "composition root"
+binds each interface to a concrete impl — so the dummy data and the SumUp module can be
+swapped without touching screens. Each lower layer is reached only through its interface.
+
+**Screens** (`app/`, expo-router): [_layout.tsx](app/_layout.tsx) nests the providers
+(`GestureHandlerRootView` → `SafeAreaProvider` → `SumUpProvider` → `BasketProvider` →
+`Stack`); [index.tsx](app/index.tsx) is a dummy login (any input → `/sell`);
+[sell.tsx](app/sell.tsx) is the POS page.
+
+- **Presentation** (`src/presentation/`) — contexts, hooks, components:
+  - [basket/BasketContext.tsx](src/presentation/basket/BasketContext.tsx) — reducer-backed
+    basket (`items`, `itemCount`, `totalCents`, `addProduct/increment/decrement/remove/clear`).
+  - [sumup/SumUpContext.tsx](src/presentation/sumup/SumUpContext.tsx) — owns the SumUp
+    session: logs in once on mount, exposes `pay` / `openReaderSettings`.
+  - [checkout/useCheckout.ts](src/presentation/checkout/useCheckout.ts) — use-case: pay the
+    basket total, clear on success. [sell/useSellGrids.ts](src/presentation/sell/useSellGrids.ts)
+    loads grids from the repository.
+  - `components/` (see **Sell screen UI**), [money.ts](src/presentation/money.ts)
+    (`formatEuros`), [theme.ts](src/presentation/theme.ts) (`APP_MARGIN` — the one app-wide
+    spacing constant).
+- **Services** (`src/services/`) — [PaymentService.ts](src/services/PaymentService.ts)
+  interface (abstracts the module), [SumUpPaymentService.ts](src/services/SumUpPaymentService.ts)
+  impl (shared/de-duplicated login, Android runtime BT permissions), bound in
+  [payment.ts](src/services/payment.ts).
+- **Data** (`src/data/`) — `SellGridRepository` impl over hard-coded
+  [dummySellGrids.ts](src/data/dummySellGrids.ts), bound in
+  [repositories.ts](src/data/repositories.ts) (swap to an API here later).
+- **Domain** (`src/domain/`) — [models.ts](src/domain/models.ts) (`Product`, `SellGrid`,
+  `BasketItem`) + the `SellGridRepository` interface. No dependencies.
+
+**Money is always integer cents** (matches the module); display via `formatEuros`.
+
+### Sell screen UI
+
+- **Grid** ([SellGrid.tsx](src/presentation/components/SellGrid.tsx)) — products chunked
+  into rows of exactly 3 square tiles via flexbox (`flex: 1` + `aspectRatio: 1`, no pixel
+  math, so it never wraps/overflows); a short last row is padded with empty cells. Each
+  [ProductTile](src/presentation/components/ProductTile.tsx) shows its basket quantity as a
+  [CountBadge](src/presentation/components/CountBadge.tsx) — the same bubble as the basket
+  button.
+- **Category carousel** ([GridTabs.tsx](src/presentation/components/GridTabs.tsx)) — a
+  synthetic **"Tout"** pill (all products, deduped) first, then one per grid. The grid is a
+  horizontal **paging `ScrollView`** (one page per tab): tapping a pill pages to it, swiping
+  the grid selects the pill — both keep `selectedId` in sync and centre the active pill.
+- **Basket** — a floating [BasketFab](src/presentation/components/BasketFab.tsx) opens a
+  native bottom sheet ([BasketSheet.tsx](src/presentation/components/BasketSheet.tsx)) built
+  on **`@lodev09/react-native-true-sheet`** (detents `[0.7, 1]` — 0.7 default, drag to full
+  screen; pinned header/footer, only the list scrolls). Rows support **swipe-to-delete** via
+  `react-native-gesture-handler`'s `ReanimatedSwipeable`; on Android the sheet content needs
+  its **own** `GestureHandlerRootView` (it renders in a separate window, outside the app
+  root's).
+- [PayButtons](src/presentation/components/PayButtons.tsx) drive `useCheckout`; the Tap to
+  Pay label is per-platform (iPhone / Android).
+
+## SumUp module architecture
+
+Three layers, top to bottom. **The JS layer never branches on platform** — parity is the
+job of the two native facades, which return result maps with identical keys.
+
+1. **Unified JS API** — [src/SumUp.ts](modules/sumup-tap-to-pay-sdk-react-native/src/SumUp.ts)
+   (`SumUp.login/pay/logout/getStatus/...`) over the native module interface
+   `src/SumUpTapToPayModule.ts`. Shared, platform-agnostic types in
+   [src/types.ts](modules/sumup-tap-to-pay-sdk-react-native/src/types.ts). `amount` is
+   always **integer minor units** (cents): `150` = €1.50.
+
+2. **Expo bridge modules** (thin) — `ios/SumUpTapToPayModule.swift` and
+   `android/.../expo/modules/sumuptaptopay/SumUpTapToPayModule.kt`. They only marshal
+   args/promises and forward to the facade; no SumUp logic here. The Android bridge also
+   forwards `OnActivityResult` (the merchant SDK is Activity-based) and passes the current
+   `Activity` into `login`/`pay`.
+
+3. **Platform facades** (the real logic) — `ios/SumUpManager.swift` and
+   `android/.../bzh/aee/sumup/SumUpManager.kt`. All SumUp behavior lives here.
+
+### The core asymmetry (read this before touching login/pay)
+
+| | iOS | Android |
+|---|---|---|
+| SDKs | **one** `SumUpSDK` | **two**: `com.sumup.tap-to-pay:utopia-sdk` 1.1.2 + `com.sumup:merchant-sdk` 7.1.0 |
+| Login | one `login(withToken:)` powers **both** methods (~fast) | Tap to Pay: headless `init()`; card reader: **Activity-based** `SumUpAPI.openLoginActivity` — no headless login exists |
+
+Consequences baked into `SumUpManager.kt`:
+- `login()` logs in **both** methods (iOS parity). Tap to Pay inits headlessly; the card
+  reader logs in eagerly (or refreshes an existing session with `updateAccessToken`). The
+  two are run **concurrently** (`async`/`await`) since they're independent SDKs.
+- `pay()` **never auto-connects**: if the requested method has no session it throws
+  `"Log in first!"` (string kept identical to iOS `SumUpError.notLoggedIn`).
+- Result-map keys (`tapToPay`, `bluetoothCardReader`, `success`, `state`,
+  `sumupTransactionId`, `transactionId`) are declared as constants in both facades and
+  **must stay in sync** — the JS/types layer assumes they match.
+
+## The Android config plugin — `plugin/withSumUp.js`
+
+All Android-only native config that can't live in the module's `build.gradle`. Editing it
+requires `expo prebuild --clean` to take effect. It handles:
+- SumUp maven repos (incl. the **private Tap-to-Pay repo** with credentials from
+  `SUMUP_MAVEN_USER`/`SUMUP_MAVEN_PASSWORD` and a content filter so its HTTP 500s don't
+  break other resolution), core-library desugaring, a **Koin 3.5.3 pin** (utopia-sdk needs
+  the old `lazyModules` signature), raised Gradle JVM memory, and disabling release lint.
+- **Hiding the card-reader login flash** (see below).
+
+### Card-reader login flash (Android)
+
+The merchant SDK's `LoginActivity` flashes a full-screen branded screen for ~0.5s during
+the token-exchange RPC even with an access token; there is no headless login API. The
+plugin hides it (for the opaque-token path) by: (1) a per-activity **translucent theme**
+override via `tools:replace`, inheriting `SumUpTheme.ActionBarNoShadow` so the AppCompat
+ActionBar the Activity needs still exists; (2) an **app-level resource override** of
+`res/layout/sumup_activity_login.xml` (app resources win the merge over the library's) that
+keeps the original `<include>` — so every `findViewById` still resolves — but marks the
+root `visibility="invisible"`. The flash is also a **first-login-only** event (the session
+persists across restarts; later logins just refresh the token). Caveat: JWT access tokens
+route to `SSOLoginActivity` instead, which sets its theme in code and is **not** covered.
+Full rationale is in the plugin's header comment.
+
+## Submodule workflow (important)
+
+Native changes (Swift / Kotlin / `withSumUp.js`) live in the **submodule**, not the parent.
+- **Commit in two steps**: commit inside `modules/sumup-tap-to-pay-sdk-react-native` first,
+  then a second commit in `aee-vente` bumping the submodule pointer.
+- **Push order**: submodule first, then parent — otherwise the parent references a SHA the
+  remote doesn't have (GitHub shows 404 for it).
+- There may be a **separate standalone clone** of this submodule elsewhere on disk; commits
+  in the embedded `modules/...` copy do not appear there. Treat the embedded copy as the
+  source of truth and `pull` in the standalone.
+- All three repos (this one + the submodule) push to `github.com/AE-ENSSAT`.
+
+## Configuration & constraints
+
+- Secrets live in `.env` (see `.env.example`), surfaced via `app.config.js` → `extra` →
+  [constants/sumup.ts](constants/sumup.ts): `SUMUP_AFFILIATE_KEY`, `SUMUP_ACCESS_TOKEN`
+  (runtime), `SUMUP_MAVEN_USER`/`SUMUP_MAVEN_PASSWORD` (Android private maven).
+- iOS requires the `com.apple.developer.proximity-reader.payment.acceptance` entitlement
+  (set in `app.config.js`, granted by Apple on the provisioning profile).
+- Android: `minSdkVersion 30`, Java 17 (set via `expo-build-properties`).
+- `ios/` and `android/` are generated by prebuild (CNG) — don't hand-edit them; change
+  `app.config.js`, `expo-build-properties`, or the config plugin instead.

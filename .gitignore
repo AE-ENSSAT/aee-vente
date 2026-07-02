@@ -1,0 +1,70 @@
+# ----------------------
+# Dependencies
+# ----------------------
+node_modules/
+
+# ----------------------
+# Expo
+# ----------------------
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# ----------------------
+# Native (general)
+# ----------------------
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# ----------------------
+# Android / Gradle (IMPORTANT)
+# ----------------------
+**/build/
+**/.gradle/
+**/local.properties
+**/*.log
+
+# Android Studio
+.idea/
+*.iml
+
+# ----------------------
+# Metro
+# ----------------------
+.metro-health-check*
+
+# ----------------------
+# Debug
+# ----------------------
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# ----------------------
+# macOS
+# ----------------------
+.DS_Store
+*.pem
+
+# ----------------------
+# Env files
+# ----------------------
+.env
+.env*.local
+
+# ----------------------
+# TypeScript
+# ----------------------
+*.tsbuildinfo
+
+# ----------------------
+# Generated native folders (Expo prebuild)
+# ----------------------
+/ios
+/android
