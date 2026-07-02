@@ -1,11 +1,15 @@
 # fastlane/Fastfile — iOS signing + packaging for CI (the develop → Firebase path).
 #
-# Why fastlane here: an ad-hoc build only runs on devices listed in its provisioning
+# Why fastlane here: a development build only runs on devices listed in its provisioning
 # profile, and a profile does NOT auto-include devices added after it was created. The
-# `adhoc` lane force-regenerates the profile at build time via an App Store Connect API
+# `dev` lane force-regenerates the profile at build time via an App Store Connect API
 # key, so every currently-registered device — including ones Firebase auto-registers when
 # a tester accepts an invite — is baked into the next build. Net: adding a tester needs no
 # manual profile juggling, just a re-run.
+#
+# We use DEVELOPMENT signing (not ad-hoc) because this account's Tap to Pay entitlement is
+# only valid for development-type profiles. Development builds are still device-locked, so
+# Firebase distribution behaves the same.
 #
 # The distribution certificate (+ private key) is imported into the keychain by the CI
 # workflow (apple-actions/import-codesign-certs) before this runs.
@@ -16,8 +20,8 @@
 default_platform(:ios)
 
 platform :ios do
-	desc 'Build an ad-hoc IPA with a freshly regenerated provisioning profile'
-	lane :adhoc do
+	desc 'Build a development-signed IPA with a freshly regenerated provisioning profile'
+	lane :dev do
 		# Resolve the workspace at runtime, anchored to an absolute path — fastlane's
 		# working directory isn't guaranteed to be the repo root.
 		root = ENV['GITHUB_WORKSPACE'] || Dir.pwd
@@ -36,7 +40,7 @@ platform :ios do
 
 		# force: true regenerates the profile so newly-registered devices are included.
 		sigh(
-			adhoc: true,
+			development: true,
 			force: true,
 			app_identifier: bundle_id,
 			team_id: ENV['IOS_TEAM_ID'],
@@ -48,12 +52,11 @@ platform :ios do
 			workspace: workspace,
 			scheme: scheme,
 			configuration: 'Release',
-			export_method: 'ad-hoc',
-			# Force manual signing at archive time (the Expo project defaults to automatic
-			# development signing; ad-hoc needs the Apple Distribution identity).
+			export_method: 'development',
+			# Force manual signing at archive time (the Expo project defaults to automatic).
 			xcargs: [
 				'CODE_SIGN_STYLE=Manual',
-				'CODE_SIGN_IDENTITY="Apple Distribution"',
+				'CODE_SIGN_IDENTITY="Apple Development"',
 				"DEVELOPMENT_TEAM=#{ENV.fetch('IOS_TEAM_ID')}",
 				"PROVISIONING_PROFILE_SPECIFIER=\"#{profile_name}\"",
 			].join(' '),

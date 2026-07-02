@@ -159,8 +159,10 @@ jobs:
               if: github.ref_name == 'develop'
               uses: apple-actions/import-codesign-certs@v3
               with:
-                  p12-file-base64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
-                  p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+                  # develop → Firebase uses DEVELOPMENT signing, so this is an Apple
+                  # Development cert. (main → App Store will use IOS_CERT_*_PROD.)
+                  p12-file-base64: ${{ secrets.IOS_CERT_BASE64_DEV }}
+                  p12-password: ${{ secrets.IOS_CERT_PASSWORD_DEV }}
 
             - name: Prebuild (iOS)
               if: github.ref_name == 'develop'
@@ -182,7 +184,7 @@ jobs:
                   ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
                   ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
                   ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
-              run: fastlane ios adhoc
+              run: fastlane ios dev
 
             - name: Upload IPA artifact
               if: github.ref_name == 'develop'
