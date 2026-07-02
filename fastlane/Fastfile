@@ -15,13 +15,15 @@
 
 default_platform(:ios)
 
-WORKSPACE = Dir['ios/*.xcworkspace'].first
-SCHEME = WORKSPACE && File.basename(WORKSPACE, '.xcworkspace')
-
 platform :ios do
 	desc 'Build an ad-hoc IPA with a freshly regenerated provisioning profile'
 	lane :adhoc do
-		UI.user_error!('No ios/*.xcworkspace found — run `expo prebuild` first.') unless WORKSPACE
+		# Resolve the workspace at runtime, anchored to an absolute path — fastlane's
+		# working directory isn't guaranteed to be the repo root.
+		root = ENV['GITHUB_WORKSPACE'] || Dir.pwd
+		workspace = Dir[File.join(root, 'ios', '*.xcworkspace')].first
+		UI.user_error!("No ios/*.xcworkspace under #{root} — did `expo prebuild` run?") unless workspace
+		scheme = File.basename(workspace, '.xcworkspace')
 
 		bundle_id = ENV.fetch('IOS_BUNDLE_ID')
 
@@ -43,8 +45,8 @@ platform :ios do
 		profile_name = lane_context[SharedValues::SIGH_NAME]
 
 		build_app(
-			workspace: WORKSPACE,
-			scheme: SCHEME,
+			workspace: workspace,
+			scheme: scheme,
 			configuration: 'Release',
 			export_method: 'ad-hoc',
 			# Force manual signing at archive time (the Expo project defaults to automatic).
