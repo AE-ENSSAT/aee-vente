@@ -65,6 +65,13 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-bun-store-
 
+            # The SDK/NDK on the hosted runner is owned by root, so the cache restore's
+            # tar (run as the runner user) can't re-apply timestamps/permissions on those
+            # files — spamming "utime/chmod: Operation not permitted". Take ownership first
+            # so the restore below is clean.
+            - name: Take ownership of the Android SDK
+              run: sudo chown -R "$USER" "$ANDROID_SDK_ROOT"
+
             # The Android NDK (~1 GB) is installed on demand by the Gradle build for the
             # native-compiling modules (reanimated/worklets/gesture-handler). Cache it so we
             # don't re-download + unpack it every run. Keyed on bun.lock since the Expo SDK
