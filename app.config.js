@@ -83,7 +83,16 @@ module.exports = () => ({
 				{
 					ios: { deploymentTarget: '16.0' },
 					// Tap to Pay requires minSdk 30 and Java 17 (Expo 54 default).
-					android: { minSdkVersion: 30 },
+					android: {
+						minSdkVersion: 30,
+						// CI pins this to an NDK preinstalled on the runner (see the
+						// ANDROID_NDK_VERSION env in build-and-distribute.yml) so the
+						// Gradle build skips downloading RN's default NDK. Unset
+						// locally → RN's default is used.
+						...(process.env.ANDROID_NDK_VERSION && {
+							ndkVersion: process.env.ANDROID_NDK_VERSION,
+						}),
+					},
 				},
 			],
 			'./modules/sumup-tap-to-pay-sdk-react-native/plugin/withSumUp',

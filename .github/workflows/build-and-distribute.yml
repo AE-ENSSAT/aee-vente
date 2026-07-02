@@ -27,6 +27,12 @@ jobs:
             SUMUP_MAVEN_USER: ${{ secrets.SUMUP_MAVEN_USER }}
             SUMUP_MAVEN_PASSWORD: ${{ secrets.SUMUP_MAVEN_PASSWORD }}
             BUILD_NUMBER: ${{ github.run_number }}
+            # Pin the NDK to one PREINSTALLED on the runner image (27.3.13750724 — an r27
+            # patch bump from RN 0.81's default 27.1, fully compatible). This makes the
+            # Gradle build reuse the on-image NDK instead of downloading + caching a ~2.6 GB
+            # one. app.config.js only applies this when the var is set, so local Android
+            # builds keep RN's default. Bump this if the runner image drops the version.
+            ANDROID_NDK_VERSION: 27.3.13750724
             # develop → `.dev` app identity (bzh.aee.vente.dev); main → production id.
             APP_VARIANT: ${{ github.ref_name == 'develop' && 'dev' || '' }}
             # Split keystores: the DEV key signs Firebase test builds; the PROD key is the
@@ -64,25 +70,6 @@ jobs:
                   key: ${{ runner.os }}-bun-store-${{ hashFiles('bun.lock') }}
                   restore-keys: |
                       ${{ runner.os }}-bun-store-
-
-            # The SDK/NDK on the hosted runner is owned by root, so the cache restore's
-            # tar (run as the runner user) can't re-apply timestamps/permissions on those
-            # files — spamming "utime/chmod: Operation not permitted". Take ownership first
-            # so the restore below is clean.
-            - name: Take ownership of the Android SDK
-              run: sudo chown -R "$USER" "$ANDROID_SDK_ROOT"
-
-            # The Android NDK (~1 GB) is installed on demand by the Gradle build for the
-            # native-compiling modules (reanimated/worklets/gesture-handler). Cache it so we
-            # don't re-download + unpack it every run. Keyed on bun.lock since the Expo SDK
-            # pins the NDK version.
-            - name: Cache Android NDK
-              uses: actions/cache@v4
-              with:
-                  path: /usr/local/lib/android/sdk/ndk
-                  key: ${{ runner.os }}-android-ndk-${{ hashFiles('bun.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-android-ndk-
 
             - name: Install JS dependencies
               run: bun install --frozen-lockfile
