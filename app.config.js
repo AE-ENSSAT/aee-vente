@@ -60,15 +60,14 @@ module.exports = () => ({
 		},
 		android: {
 			package: BUNDLE_ID,
-			// Legacy square launcher icon (mipmap ic_launcher.png). Firebase App
-			// Distribution reads this raster PNG, not the adaptive-icon XML; without
-			// it the PNG is derived from the padded adaptive foreground and App
-			// Distribution can't decode it, showing a generic "A" placeholder.
+			// Plain raster launcher icon only — no `adaptiveIcon`. Firebase App
+			// Distribution cannot render Android adaptive icons (the
+			// mipmap-anydpi-v26/ic_launcher.xml) and shows a generic "A" placeholder
+			// instead. Shipping only the legacy raster makes `@mipmap/ic_launcher`
+			// resolve to a PNG/webp App Distribution can decode. Trade-off: no
+			// adaptive-icon masking on the device home screen (acceptable for this
+			// demo). See https://firebase.google.com/docs/app-distribution/troubleshooting
 			icon: ICON,
-			adaptiveIcon: {
-				foregroundImage: './assets/images/adaptive-icon.png',
-				backgroundColor: '#ffffff',
-			},
 			// See ios.buildNumber — kept in sync so both stores get monotonic builds.
 			versionCode: Number(process.env.BUILD_NUMBER ?? 1),
 			edgeToEdgeEnabled: true,
