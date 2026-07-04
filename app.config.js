@@ -60,6 +60,11 @@ module.exports = () => ({
 		},
 		android: {
 			package: BUNDLE_ID,
+			// Legacy square launcher icon (mipmap ic_launcher.png). Firebase App
+			// Distribution reads this raster PNG, not the adaptive-icon XML; without
+			// it the PNG is derived from the padded adaptive foreground and App
+			// Distribution can't decode it, showing a generic "A" placeholder.
+			icon: ICON,
 			adaptiveIcon: {
 				foregroundImage: './assets/images/adaptive-icon.png',
 				backgroundColor: '#ffffff',
