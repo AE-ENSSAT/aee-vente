@@ -7,6 +7,14 @@ import type {
 export type { PaymentMethod, PaymentResult, TapToPayAvailability };
 
 /**
+ * How a sale is settled in the app: the SumUp card methods ({@link PaymentMethod}) plus
+ * **cash** ('espèces'). A cash sale takes no card, so it never touches this service — it is
+ * just recorded locally (see `useCheckout`). The card {@link PaymentService} below only ever
+ * deals in `PaymentMethod`; `CheckoutMethod` is the wider set the UI and history speak in.
+ */
+export type CheckoutMethod = PaymentMethod | 'cash';
+
+/**
  * Abstraction over taking a payment. The UI depends on this interface, not on the
  * SumUp module directly, so the payment backend can be mocked or replaced.
  */

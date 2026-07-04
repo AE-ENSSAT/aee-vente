@@ -1,4 +1,4 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -14,7 +14,9 @@ import {
 	type Transaction,
 	transactionStore,
 } from '@/src/data/transactionStore';
+import { PaymentMethodIcon } from '@/src/presentation/components/PaymentMethodIcon';
 import { formatEuros } from '@/src/presentation/money';
+import { paymentMethodLabel } from '@/src/presentation/paymentMethod';
 import { FONT } from '@/src/presentation/theme';
 
 /** "04/07 · 14:32" — short, locale-independent. */
@@ -109,7 +111,6 @@ function TransactionRow({
 	transaction: Transaction;
 	onPress: () => void;
 }) {
-	const isTapToPay = transaction.method === 'tapToPay';
 	return (
 		<Pressable
 			onPress={onPress}
@@ -117,25 +118,15 @@ function TransactionRow({
 			accessibilityRole="button"
 		>
 			<View style={styles.rowIcon}>
-				{isTapToPay ? (
-					<MaterialIcons
-						name="contactless"
-						size={22}
-						color="#96275E"
-					/>
-				) : (
-					<Ionicons
-						name="bluetooth-outline"
-						size={22}
-						color="#96275E"
-					/>
-				)}
+				<PaymentMethodIcon
+					method={transaction.method}
+					size={22}
+					color="#96275E"
+				/>
 			</View>
 			<View style={styles.rowBody}>
 				<Text style={styles.rowMethod}>
-					{isTapToPay
-						? 'Tap to Pay sur iPhone'
-						: 'Terminal de paiement'}
+					{paymentMethodLabel(transaction.method)}
 				</Text>
 				<View style={styles.rowMeta}>
 					<Text style={styles.rowDate}>

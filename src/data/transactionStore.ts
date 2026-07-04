@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import type { PaymentMethod } from '@/src/services/PaymentService';
+import type { CheckoutMethod } from '@/src/services/PaymentService';
 
 /** One line of a sale — a denormalized snapshot (names/prices as they were at sale time). */
 export interface TransactionLine {
@@ -19,7 +19,7 @@ export interface Transaction {
 	timestamp: number;
 	/** Integer minor units (cents). */
 	amountCents: number;
-	method: PaymentMethod;
+	method: CheckoutMethod;
 	/** Outcome of the payment attempt. Declined attempts are recorded too, so a
 	 *  confidential receipt can still be offered for them (Apple Tap to Pay req 5.10). */
 	status: 'approved' | 'declined';
@@ -80,7 +80,7 @@ export const transactionStore = {
 	async add(input: {
 		id: string;
 		amountCents: number;
-		method: PaymentMethod;
+		method: CheckoutMethod;
 		status: 'approved' | 'declined';
 		lines: TransactionLine[];
 	}): Promise<void> {

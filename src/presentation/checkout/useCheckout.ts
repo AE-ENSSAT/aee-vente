@@ -7,7 +7,16 @@ import {
 } from '@/src/presentation/checkout/tapToPaySupport';
 import { hapticError } from '@/src/presentation/haptics';
 import { useSumUp } from '@/src/presentation/sumup/SumUpContext';
-import type { PaymentMethod } from '@/src/services/PaymentService';
+import type { CheckoutMethod } from '@/src/services/PaymentService';
+
+/**
+ * A locally-unique reference for a cash sale — no PSP issues one for cash. Payments are
+ * sequential, so a timestamp plus a random suffix never collides in practice; the `cash-`
+ * prefix keeps the reference legible on the receipt.
+ */
+function newCashTransactionId(): string {
+	return `cash-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
 
 /**
  * Application use-case: pay the current basket total with a method. Keeps payment
@@ -23,23 +32,22 @@ export function useCheckout(
 ) {
 	const { totalCents, items } = useBasket();
 	const { pay } = useSumUp();
-	const [busy, setBusy] = useState(false);
+	// The method currently being charged, or null when idle. Tracked (rather than a bare
+	// boolean) so the UI can spin only the button that was pressed — the others must not look
+	// disabled (Apple Tap to Pay req 5.3). `busy` is derived from it.
+	const [pendingMethod, setPendingMethod] = useState<CheckoutMethod | null>(
+		null,
+	);
 	// Only failures surface in the UI (success is celebrated via onSuccess).
 	const [error, setError] = useState<string | null>(null);
 
 	const checkout = useCallback(
-		async (method: PaymentMethod) => {
+		async (method: CheckoutMethod) => {
 			if (totalCents <= 0) {
 				return;
 			}
-			setBusy(true);
+			setPendingMethod(method);
 			setError(null);
-			// Req 1.4: on an iPhone too old for Tap to Pay, tell the merchant to update
-			// iOS instead of surfacing a generic failure. Applied only when a Tap to Pay
-			// attempt on such a device fails, so newer iPhones and the Bluetooth reader
-			// are never affected.
-			const tooOldForTapToPay =
-				method === 'tapToPay' && isTapToPayIosTooOld();
 			// Snapshot the basket into the local store (survives restarts, cleared on
 			// sign-out). Records approved sales AND declined attempts, so a confidential
 			// receipt can still be offered for a decline — Apple Tap to Pay req 5.10.
@@ -66,6 +74,24 @@ export function useCheckout(
 					return false;
 				}
 			};
+			// Cash: no card, no reader, nothing to decline. Record the sale locally under a
+			// generated reference and run the same success path as a card sale.
+			if (method === 'cash') {
+				try {
+					const id = newCashTransactionId();
+					const stored = await persist(id, 'approved');
+					onSuccess?.(stored ? id : null);
+				} finally {
+					setPendingMethod(null);
+				}
+				return;
+			}
+			// Req 1.4: on an iPhone too old for Tap to Pay, tell the merchant to update
+			// iOS instead of surfacing a generic failure. Applied only when a Tap to Pay
+			// attempt on such a device fails, so newer iPhones and the Bluetooth reader
+			// are never affected. (`method` is narrowed to a card method past the cash return.)
+			const tooOldForTapToPay =
+				method === 'tapToPay' && isTapToPayIosTooOld();
 			try {
 				const result = await pay(method, totalCents);
 				if (result.success) {
@@ -98,7 +124,7 @@ export function useCheckout(
 							: String(e),
 				);
 			} finally {
-				setBusy(false);
+				setPendingMethod(null);
 			}
 		},
 		[totalCents, items, pay, onSuccess],
@@ -106,5 +132,13 @@ export function useCheckout(
 
 	const dismissError = useCallback(() => setError(null), []);
 
-	return { checkout, busy, error, dismissError };
+	return {
+		checkout,
+		/** A payment is in flight (any method). */
+		busy: pendingMethod !== null,
+		/** Which method is being charged, or null — so only its button spins. */
+		pendingMethod,
+		error,
+		dismissError,
+	};
 }

@@ -1,4 +1,4 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
@@ -20,8 +20,10 @@ import {
 	type Transaction,
 	transactionStore,
 } from '@/src/data/transactionStore';
+import { PaymentMethodIcon } from '@/src/presentation/components/PaymentMethodIcon';
 import { ReceiptQrModal } from '@/src/presentation/components/ReceiptQrModal';
 import { formatEuros } from '@/src/presentation/money';
+import { paymentMethodLabel } from '@/src/presentation/paymentMethod';
 import {
 	buildReceiptText,
 	sendReceiptByEmail,
@@ -68,8 +70,6 @@ export default function TransactionDetailScreen() {
 			active = false;
 		};
 	}, [id]);
-
-	const isTapToPay = transaction?.method === 'tapToPay';
 
 	return (
 		// Own SafeAreaProvider so the top/bottom insets are correct even when this screen is
@@ -194,23 +194,13 @@ export default function TransactionDetailScreen() {
 						<View style={styles.card}>
 							<DetailRow label="Méthode">
 								<View style={styles.method}>
-									{isTapToPay ? (
-										<MaterialIcons
-											name="contactless"
-											size={18}
-											color="#96275E"
-										/>
-									) : (
-										<Ionicons
-											name="bluetooth-outline"
-											size={18}
-											color="#96275E"
-										/>
-									)}
+									<PaymentMethodIcon
+										method={transaction.method}
+										size={18}
+										color="#96275E"
+									/>
 									<Text style={styles.value}>
-										{isTapToPay
-											? 'Tap to Pay sur iPhone'
-											: 'Terminal de paiement'}
+										{paymentMethodLabel(transaction.method)}
 									</Text>
 								</View>
 							</DetailRow>

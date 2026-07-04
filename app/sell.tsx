@@ -18,6 +18,7 @@ import { useBasket } from '@/src/presentation/basket/BasketContext';
 import { BasketFab } from '@/src/presentation/components/BasketFab';
 import { BasketSheet } from '@/src/presentation/components/BasketSheet';
 import { GridTabs } from '@/src/presentation/components/GridTabs';
+import { PaymentSheet } from '@/src/presentation/components/PaymentSheet';
 import { PaymentSuccessOverlay } from '@/src/presentation/components/PaymentSuccessOverlay';
 import { ProductDetailSheet } from '@/src/presentation/components/ProductDetailSheet';
 import { ReceiptPrompt } from '@/src/presentation/components/ReceiptPrompt';
@@ -39,6 +40,9 @@ export default function SellScreen() {
 	const pagerRef = useRef<ScrollView>(null);
 	const [selectedId, setSelectedId] = useState<string>('');
 	const [basketOpen, setBasketOpen] = useState(false);
+	// The payment page (method choice) — slides up over the basket when the merchant taps
+	// "Paiement", and closes behind the success flourish just like the basket does.
+	const [paymentOpen, setPaymentOpen] = useState(false);
 	// While true, the success flourish covers the whole app (in a window-level layer above the
 	// basket sheet), while the basket empties and the sheet closes behind it, unseen.
 	const [celebrating, setCelebrating] = useState(false);
@@ -81,6 +85,7 @@ export default function SellScreen() {
 			setShowReceiptPrompt(false);
 			requestAnimationFrame(() => {
 				clear();
+				setPaymentOpen(false);
 				setBasketOpen(false);
 			});
 		},
@@ -222,6 +227,11 @@ export default function SellScreen() {
 				visible={basketOpen}
 				onClose={() => setBasketOpen(false)}
 				onOpenProduct={setDetailProduct}
+				onCheckout={() => setPaymentOpen(true)}
+			/>
+			<PaymentSheet
+				visible={paymentOpen}
+				onClose={() => setPaymentOpen(false)}
 				onPaid={handlePaid}
 			/>
 			<ProductDetailSheet

@@ -1,18 +1,13 @@
 import { Linking, Platform } from 'react-native';
 import type { Transaction } from '@/src/data/transactionStore';
 import { formatEuros } from './money';
+import { paymentMethodLabel } from './paymentMethod';
 
 /** "04/07/2026 14:32" */
 function formatReceiptDate(timestamp: number): string {
 	const d = new Date(timestamp);
 	const pad = (n: number) => String(n).padStart(2, '0');
 	return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function methodLabel(method: Transaction['method']): string {
-	return method === 'tapToPay'
-		? 'Tap to Pay sur iPhone'
-		: 'Terminal de paiement';
 }
 
 function statusLabel(status: Transaction['status']): string {
@@ -38,7 +33,7 @@ export function buildReceiptText(tx: Transaction): string {
 		...lines,
 		'',
 		`Total : ${formatEuros(tx.amountCents)}`,
-		`Paiement : ${methodLabel(tx.method)}`,
+		`Paiement : ${paymentMethodLabel(tx.method)}`,
 		`Statut : ${statusLabel(tx.status)}`,
 		`Réf. : ${tx.id}`,
 	].join('\n');

@@ -19,16 +19,16 @@ import {
 import { formatEuros } from '@/src/presentation/money';
 import { BOTTOM_GAP, FONT } from '../theme';
 import { useBottomSpace } from '../useBottomSpace';
-import { PayButtons } from './PayButtons';
+import { PrimaryButton } from './PrimaryButton';
 
 interface Props {
 	visible: boolean;
 	onClose: () => void;
 	/** Tap a line to open that product's detail sheet. */
 	onOpenProduct: (product: Product) => void;
-	/** Fired the instant a payment succeeds, so the screen can start the success flourish.
-	 *  Carries the sale's id (to offer a receipt), or null when it wasn't persisted. */
-	onPaid?: (transactionId: string | null) => void;
+	/** Fired by the "Paiement" button — the screen opens the payment page (method choice) over
+	 *  this sheet. Only reachable with a non-empty basket. */
+	onCheckout: () => void;
 }
 
 /** Equal breathing room at the top and bottom of the product list. */
@@ -50,7 +50,7 @@ export function BasketSheet({
 	visible,
 	onClose,
 	onOpenProduct,
-	onPaid,
+	onCheckout,
 }: Props) {
 	const sheet = useRef<TrueSheet>(null);
 	const presented = useRef(false);
@@ -136,7 +136,22 @@ export function BasketSheet({
 							{formatEuros(totalCents)}
 						</Text>
 					</View>
-					<PayButtons onPaymentSuccess={onPaid} />
+					{/* One entry point: opens the payment page (method choice). Disabled on an
+					    empty basket — there's no sale to start, so the Tap to Pay button (never
+					    shown disabled, Apple req 5.3) simply isn't presented yet. */}
+					<PrimaryButton
+						label="Paiement"
+						variant="primary"
+						disabled={itemCount === 0}
+						onPress={onCheckout}
+						icon={
+							<Ionicons
+								name="card-outline"
+								size={20}
+								color="#ffffff"
+							/>
+						}
+					/>
 				</View>
 			}
 		>
