@@ -5,13 +5,17 @@ import { useCheckout } from '@/src/presentation/checkout/useCheckout';
 import { useSumUp } from '@/src/presentation/sumup/SumUpContext';
 import { PaymentErrorBanner } from './PaymentErrorBanner';
 import { PrimaryButton } from './PrimaryButton';
+import { TapToPayIcon } from './TapToPayIcon';
 
-/** Tap to Pay runs on the host device — label it per platform. */
+/**
+ * Tap to Pay runs on the host device — label it per platform. The iOS string is Apple's
+ * exact wordmark ("Tap to Pay sur iPhone", lowercase "to"), per the localized Tap to Pay
+ * button copy (req 5.4).
+ */
 const TAP_TO_PAY_LABEL =
-	Platform.OS === 'ios' ? 'Tap To Pay sur iPhone' : 'Tap To Pay sur Android';
+	Platform.OS === 'ios' ? 'Tap to Pay sur iPhone' : 'Tap to Pay sur Android';
 
 interface Props {
-	disabled?: boolean;
 	/** Fired after a successful payment (drives the confetti on the sell screen). */
 	onPaymentSuccess?: () => void;
 }
@@ -20,8 +24,12 @@ interface Props {
  * The three full-width payment actions: Tap to Pay, Bluetooth card reader, and (in a
  * distinct colour) the card-reader settings. Payment orchestration lives in
  * {@link useCheckout}; this component is presentation only.
+ *
+ * Neither pay button is greyed on an empty basket — Tap to Pay must never be disabled
+ * (Apple req 5.3), and the Bluetooth reader is kept consistent with it. The empty-basket
+ * case is a no-op, guarded inside `checkout` (totalCents <= 0).
  */
-export function PayButtons({ disabled, onPaymentSuccess }: Props) {
+export function PayButtons({ onPaymentSuccess }: Props) {
 	const { checkout, busy, error, dismissError } =
 		useCheckout(onPaymentSuccess);
 	const { openReaderSettings } = useSumUp();
@@ -50,21 +58,13 @@ export function PayButtons({ disabled, onPaymentSuccess }: Props) {
 				label={TAP_TO_PAY_LABEL}
 				variant="primary"
 				loading={busy}
-				disabled={disabled}
 				onPress={() => checkout('tapToPay')}
-				icon={
-					<Ionicons
-						name="phone-portrait-outline"
-						size={20}
-						color="#ffffff"
-					/>
-				}
+				icon={<TapToPayIcon color="#ffffff" size={22} />}
 			/>
 			<PrimaryButton
 				label="Terminal de paiement"
 				variant="secondary"
 				loading={busy}
-				disabled={disabled}
 				onPress={() => checkout('bluetoothCardReader')}
 				icon={
 					<Ionicons

@@ -48,6 +48,14 @@ module.exports = () => ({
 					'AEE Vente uses Bluetooth to connect to the SumUp card reader.',
 				NSLocationWhenInUseUsageDescription:
 					'AEE Vente needs your location to accept card payments securely.',
+				// Tap to Pay on iPhone requires an A12 Bionic chip or later (iPhone XS+).
+				// Apple's Tap to Pay App Review checklist (req 1.3) requires declaring this
+				// so the App Store restricts installs to compatible devices. NOTE: this also
+				// blocks pre-A12 iPhones (X / 8 and earlier) that could otherwise use the
+				// Bluetooth card reader — remove this key if you need to support them.
+				UIRequiredDeviceCapabilities: [
+					'iphone-ipad-minimum-performance-a12',
+				],
 			},
 		},
 		android: {
@@ -81,7 +89,12 @@ module.exports = () => ({
 			[
 				'expo-build-properties',
 				{
-					ios: { deploymentTarget: '16.0' },
+					// Tap to Pay on iPhone floor. Apple's checklist (req 1.2) wants the
+					// deployment target set to the minimum iOS your Tap to Pay config
+					// supports; SumUp's SDK requires iOS 16.7+ (ideally 17.5+). Devices on
+					// 16.7–17.5 can still install (and use the Bluetooth reader), and the
+					// app shows an "update iOS" message for Tap to Pay below 17.6 (req 1.4).
+					ios: { deploymentTarget: '16.7' },
 					// Tap to Pay requires minSdk 30 and Java 17 (Expo 54 default).
 					android: {
 						minSdkVersion: 30,

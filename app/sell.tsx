@@ -1,8 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
 	type NativeScrollEvent,
 	type NativeSyntheticEvent,
+	Pressable,
 	ScrollView,
 	StyleSheet,
 	Text,
@@ -20,13 +23,18 @@ import { ProductDetailSheet } from '@/src/presentation/components/ProductDetailS
 import { SellGrid } from '@/src/presentation/components/SellGrid';
 import { hapticLongPress, hapticSuccess } from '@/src/presentation/haptics';
 import { useSellGrids } from '@/src/presentation/sell/useSellGrids';
-import { APP_MARGIN, FONT } from '@/src/presentation/theme';
+import { APP_MARGIN, FAB_GAP, FAB_SIZE, FONT } from '@/src/presentation/theme';
+import { useBottomSpace } from '@/src/presentation/useBottomSpace';
 
 /** The sell page: grid selector + product grid, with the floating basket + sheet. */
 export default function SellScreen() {
 	const { grids, loading, error } = useSellGrids();
 	const { addProduct, itemCount, clear } = useBasket();
 	const { width } = useWindowDimensions();
+	const router = useRouter();
+	// Reserve enough scroll room for the last product row to clear the floating basket
+	// button (which sits `fabBottom` above the system bar and is `FAB_SIZE` tall).
+	const gridBottomInset = useBottomSpace(FAB_GAP) + FAB_SIZE;
 	const pagerRef = useRef<ScrollView>(null);
 	const [selectedId, setSelectedId] = useState<string>('');
 	const [basketOpen, setBasketOpen] = useState(false);
@@ -114,7 +122,24 @@ export default function SellScreen() {
 
 	return (
 		<SafeAreaView style={styles.safe} edges={['top']}>
-			<Text style={styles.title}>AEE Vente</Text>
+			<View style={styles.header}>
+				<Text style={styles.title}>AEE Vente</Text>
+				{/* Account / settings menu: seller profile, transaction history, the
+				    Tap to Pay on iPhone help page (req 4.3), and sign out. */}
+				<Pressable
+					onPress={() => router.push('/settings')}
+					style={styles.infoBtn}
+					accessibilityRole="button"
+					accessibilityLabel="Réglages"
+					hitSlop={8}
+				>
+					<Ionicons
+						name="settings-outline"
+						size={25}
+						color="#A91B3A"
+					/>
+				</Pressable>
+			</View>
 
 			{loading ? (
 				<View style={styles.center}>
@@ -147,6 +172,7 @@ export default function SellScreen() {
 									grid={g}
 									onSelectProduct={tapProduct}
 									onLongPressProduct={openDetail}
+									bottomInset={gridBottomInset}
 								/>
 							</View>
 						))}
@@ -178,16 +204,22 @@ export default function SellScreen() {
 const styles = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: '#FAF7F2' },
 	pager: { flex: 1 },
-	title: {
-		fontSize: 26,
-		fontFamily: FONT.black,
-		color: '#A91B3A',
-		letterSpacing: 0.3,
+	header: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
 		paddingHorizontal: APP_MARGIN,
 		// Same margin above and below as the gaps below (carousel ↔ grid, grid bottom).
 		paddingTop: APP_MARGIN,
 		paddingBottom: APP_MARGIN,
 	},
+	title: {
+		fontSize: 26,
+		fontFamily: FONT.black,
+		color: '#A91B3A',
+		letterSpacing: 0.3,
+	},
+	infoBtn: { padding: 4 },
 	center: {
 		flex: 1,
 		alignItems: 'center',

@@ -12,6 +12,7 @@ import {
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { transactionStore } from '@/src/data/transactionStore';
 import { FONT } from '@/src/presentation/theme';
 
 /**
@@ -23,7 +24,11 @@ export default function LoginScreen() {
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 
-	const logIn = () => {
+	const logIn = async () => {
+		// Start each session with a clean history. Doing this on login (rather than on
+		// sign-out) is more reliable — it also covers a previous session that ended in a
+		// crash or force-quit without a proper sign-out.
+		await transactionStore.clear();
 		router.replace('/sell');
 	};
 

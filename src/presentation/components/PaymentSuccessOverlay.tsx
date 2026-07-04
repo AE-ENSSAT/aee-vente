@@ -58,7 +58,16 @@ function TopLayer({ children }: { children: ReactNode }) {
 		return <FullWindowOverlay>{children}</FullWindowOverlay>;
 	}
 	return (
-		<Modal visible transparent statusBarTranslucent animationType="none">
+		// statusBarTranslucent + navigationBarTranslucent so the full-bleed flourish covers
+		// under BOTH system bars on Android edge-to-edge — otherwise the basket sheet
+		// dismissing behind it can peek through the nav-bar strip.
+		<Modal
+			visible
+			transparent
+			statusBarTranslucent
+			navigationBarTranslucent
+			animationType="none"
+		>
 			{children}
 		</Modal>
 	);

@@ -5,6 +5,7 @@ import type {
 	PaymentMethod,
 	PaymentResult,
 	PaymentService,
+	TapToPayAvailability,
 } from './PaymentService';
 
 /** Android 12+ requires runtime Bluetooth permissions before using the card reader. */
@@ -63,5 +64,25 @@ export class SumUpPaymentService implements PaymentService {
 		await this.ensureLoggedIn();
 		await requestBluetoothPermissions();
 		await SumUp.openCardReaderSettings();
+	}
+
+	async activateTapToPay(): Promise<TapToPayAvailability> {
+		if (Platform.OS !== 'ios') {
+			throw new Error(
+				'Tap to Pay sur iPhone est disponible uniquement sur iOS.',
+			);
+		}
+		await this.ensureLoggedIn();
+		return SumUp.activateTapToPay();
+	}
+
+	async presentTapToPayEducation(): Promise<void> {
+		if (Platform.OS !== 'ios') {
+			throw new Error(
+				'Tap to Pay sur iPhone est disponible uniquement sur iOS.',
+			);
+		}
+		// Apple's education UI needs only the entitlement, not a SumUp session — so no login.
+		await SumUp.presentTapToPayEducation();
 	}
 }

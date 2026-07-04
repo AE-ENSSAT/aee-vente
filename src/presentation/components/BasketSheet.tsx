@@ -17,7 +17,8 @@ import {
 	useBasket,
 } from '@/src/presentation/basket/BasketContext';
 import { formatEuros } from '@/src/presentation/money';
-import { FONT } from '../theme';
+import { BOTTOM_GAP, FONT } from '../theme';
+import { useBottomSpace } from '../useBottomSpace';
 import { PayButtons } from './PayButtons';
 
 interface Props {
@@ -53,6 +54,11 @@ export function BasketSheet({
 	const sheet = useRef<TrueSheet>(null);
 	const presented = useRef(false);
 	const { items, totalCents, itemCount, clear } = useBasket();
+	// The sheet opts out of true-sheet's auto safe-area (`insetAdjustment="never"`), so the
+	// footer clears the system bar itself. Reading the inset here in the host is robust —
+	// the host is under the app-root SafeAreaProvider even though the sheet renders in a
+	// separate window on Android.
+	const footerBottom = useBottomSpace(BOTTOM_GAP);
 
 	const confirmClear = useCallback(() => {
 		Alert.alert(
@@ -119,17 +125,17 @@ export function BasketSheet({
 				</View>
 			}
 			footer={
-				<View style={styles.footer} onLayout={onFooterLayout}>
+				<View
+					style={[styles.footer, { paddingBottom: footerBottom }]}
+					onLayout={onFooterLayout}
+				>
 					<View style={styles.totalRow}>
 						<Text style={styles.totalLabel}>Total</Text>
 						<Text style={styles.totalValue}>
 							{formatEuros(totalCents)}
 						</Text>
 					</View>
-					<PayButtons
-						disabled={itemCount === 0}
-						onPaymentSuccess={onPaid}
-					/>
+					<PayButtons onPaymentSuccess={onPaid} />
 				</View>
 			}
 		>
@@ -290,10 +296,9 @@ const styles = StyleSheet.create({
 		gap: 12,
 		paddingHorizontal: 18,
 		paddingTop: 12,
-		// Flush to the sheet bottom (no marginBottom) so the list's bottom gap is a
-		// clean footerHeight + GAP; the padding clears the home indicator. The extra
-		// CARD_INSET keeps the buttons the same distance from the bottom as before.
-		paddingBottom: 24 + CARD_INSET,
+		// Flush to the sheet bottom (no marginBottom) so the list's bottom gap is a clean
+		// footerHeight + GAP. paddingBottom is applied dynamically (insets.bottom + BOTTOM_GAP)
+		// so the bottom pay button clears the Android nav bar / iOS home indicator.
 		backgroundColor: '#ffffff',
 		// Outer gap from the card's rounded edge (sides only).
 		marginHorizontal: CARD_INSET,

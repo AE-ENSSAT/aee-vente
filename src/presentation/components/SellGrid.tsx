@@ -10,6 +10,11 @@ interface Props {
 	onSelectProduct: (product: Product) => void;
 	/** Long-press a tile to open its detail sheet. */
 	onLongPressProduct?: (product: Product) => void;
+	/**
+	 * Extra bottom padding for the scroll content — the system-bar inset plus the floating
+	 * basket button's clearance — so the last product row is never hidden under either.
+	 */
+	bottomInset?: number;
 }
 
 interface Cell {
@@ -30,7 +35,12 @@ const cellKey = (x: number, y: number) => `${x},${y}`;
  * left empty. Cells split the row width evenly (`flex: 1` + `aspectRatio: 1`), so tiles stay
  * square at any column count and the grid scrolls vertically when taller than the screen.
  */
-export function SellGrid({ grid, onSelectProduct, onLongPressProduct }: Props) {
+export function SellGrid({
+	grid,
+	onSelectProduct,
+	onLongPressProduct,
+	bottomInset = 0,
+}: Props) {
 	// Index the placed products by cell for O(1) lookup while building the matrix.
 	const byCell = new Map<string, Product>();
 	for (const item of grid.items) {
@@ -52,7 +62,10 @@ export function SellGrid({ grid, onSelectProduct, onLongPressProduct }: Props) {
 	return (
 		<ScrollView
 			style={styles.scroll}
-			contentContainerStyle={styles.content}
+			contentContainerStyle={[
+				styles.content,
+				{ paddingBottom: APP_MARGIN + bottomInset },
+			]}
 		>
 			{rows.map((row) => (
 				<View key={row.key} style={styles.row}>

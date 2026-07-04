@@ -9,6 +9,7 @@ import {
 import type {
 	PaymentMethod,
 	PaymentResult,
+	TapToPayAvailability,
 } from '@/src/services/PaymentService';
 import { paymentService } from '@/src/services/payment';
 
@@ -17,6 +18,10 @@ interface SumUpContextValue {
 	ready: boolean;
 	pay: (method: PaymentMethod, amountCents: number) => Promise<PaymentResult>;
 	openReaderSettings: () => Promise<void>;
+	/** Enable Tap to Pay outside a sale (Apple activation / T&C sheet). iOS only. */
+	activateTapToPay: () => Promise<TapToPayAvailability>;
+	/** Present Apple's Tap to Pay merchant education (iOS 18+). iOS only. */
+	presentTapToPayEducation: () => Promise<void>;
 }
 
 const SumUpContext = createContext<SumUpContextValue | null>(null);
@@ -49,6 +54,9 @@ export function SumUpProvider({ children }: { children: ReactNode }) {
 			pay: (method, amountCents) =>
 				paymentService.pay(method, amountCents),
 			openReaderSettings: () => paymentService.openReaderSettings(),
+			activateTapToPay: () => paymentService.activateTapToPay(),
+			presentTapToPayEducation: () =>
+				paymentService.presentTapToPayEducation(),
 		}),
 		[ready],
 	);

@@ -9,6 +9,7 @@ import {
 } from '@/src/presentation/basket/BasketContext';
 import { formatEuros } from '@/src/presentation/money';
 import { FONT } from '../theme';
+import { useBottomSpace } from '../useBottomSpace';
 import { QuantityControls } from './QuantityControls';
 
 interface Props {
@@ -27,6 +28,8 @@ export function ProductDetailSheet({ product, onClose }: Props) {
 	const sheet = useRef<TrueSheet>(null);
 	const presented = useRef(false);
 	const { addProduct, decrement, remove, quantityOf } = useBasket();
+	// `insetAdjustment="never"`, so the content clears the system bar itself (see BasketSheet).
+	const bottomPad = useBottomSpace(20);
 
 	// Keep the last non-null product so the content survives the dismiss animation.
 	const [shown, setShown] = useState<Product | null>(null);
@@ -72,7 +75,7 @@ export function ProductDetailSheet({ product, onClose }: Props) {
 			onDidDismiss={handleDidDismiss}
 		>
 			{shown ? (
-				<View style={styles.container}>
+				<View style={[styles.container, { paddingBottom: bottomPad }]}>
 					<Pressable onPress={onClose} style={styles.closeBtn}>
 						<Ionicons name="close" size={22} color="#1A1A1A" />
 					</Pressable>
