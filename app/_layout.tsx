@@ -39,7 +39,26 @@ export default function RootLayout() {
 				{/* SumUp session (logs in on mount) wraps the basket so payments are ready. */}
 				<SumUpProvider>
 					<BasketProvider>
-						<Stack screenOptions={{ headerShown: false }} />
+						<Stack screenOptions={{ headerShown: false }}>
+							<Stack.Screen
+								name="transaction/[id]"
+								options={({ route }) => {
+									const isReceipt =
+										(
+											route.params as
+												| { origin?: string }
+												| undefined
+										)?.origin === 'receipt';
+									// Receipt (from the sell prompt): present as a
+									// full-screen native modal — a real page that
+									// slides up from the bottom and back down on close,
+									// at native speed. From history: the normal card push.
+									return isReceipt
+										? { presentation: 'fullScreenModal' }
+										: { presentation: 'card' };
+								}}
+							/>
+						</Stack>
 					</BasketProvider>
 				</SumUpProvider>
 			</SafeAreaProvider>

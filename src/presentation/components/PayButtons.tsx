@@ -16,8 +16,9 @@ const TAP_TO_PAY_LABEL =
 	Platform.OS === 'ios' ? 'Tap to Pay sur iPhone' : 'Tap to Pay sur Android';
 
 interface Props {
-	/** Fired after a successful payment (drives the confetti on the sell screen). */
-	onPaymentSuccess?: () => void;
+	/** Fired after a successful payment (drives the confetti + receipt offer on the sell
+	 *  screen). Carries the sale's id, or null when it could not be persisted locally. */
+	onPaymentSuccess?: (transactionId: string | null) => void;
 }
 
 /**

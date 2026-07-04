@@ -26,8 +26,9 @@ interface Props {
 	onClose: () => void;
 	/** Tap a line to open that product's detail sheet. */
 	onOpenProduct: (product: Product) => void;
-	/** Fired the instant a payment succeeds, so the screen can start the success flourish. */
-	onPaid?: () => void;
+	/** Fired the instant a payment succeeds, so the screen can start the success flourish.
+	 *  Carries the sale's id (to offer a receipt), or null when it wasn't persisted. */
+	onPaid?: (transactionId: string | null) => void;
 }
 
 /** Equal breathing room at the top and bottom of the product list. */

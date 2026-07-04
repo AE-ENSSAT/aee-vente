@@ -20,6 +20,7 @@ import { BasketSheet } from '@/src/presentation/components/BasketSheet';
 import { GridTabs } from '@/src/presentation/components/GridTabs';
 import { PaymentSuccessOverlay } from '@/src/presentation/components/PaymentSuccessOverlay';
 import { ProductDetailSheet } from '@/src/presentation/components/ProductDetailSheet';
+import { ReceiptPrompt } from '@/src/presentation/components/ReceiptPrompt';
 import { SellGrid } from '@/src/presentation/components/SellGrid';
 import { hapticLongPress, hapticSuccess } from '@/src/presentation/haptics';
 import { useSellGrids } from '@/src/presentation/sell/useSellGrids';
@@ -41,6 +42,11 @@ export default function SellScreen() {
 	// While true, the success flourish covers the whole app (in a window-level layer above the
 	// basket sheet), while the basket empties and the sheet closes behind it, unseen.
 	const [celebrating, setCelebrating] = useState(false);
+	// The just-paid sale's id, kept so the receipt prompt (shown once the flourish fades) can
+	// open its detail. Set the instant payment succeeds; cleared when the prompt is dismissed.
+	const [receiptTxId, setReceiptTxId] = useState<string | null>(null);
+	// Whether the "Voulez-vous un reçu ?" bottom prompt is up (only after the flourish fades).
+	const [showReceiptPrompt, setShowReceiptPrompt] = useState(false);
 	// The product whose detail sheet is open (long-press a tile), or null when closed.
 	const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
@@ -66,19 +72,43 @@ export default function SellScreen() {
 	// Payment succeeded — the instant SumUp returns accepted. Pop the flourish on top of
 	// everything (with the haptic); then, deferred a frame so the overlay is up first, empty
 	// the basket and close the sheet behind it. The overlay is an independent window-level
-	// layer, so the sheet's close is never seen.
-	const handlePaid = useCallback(() => {
-		hapticSuccess();
-		setCelebrating(true);
-		requestAnimationFrame(() => {
-			clear();
-			setBasketOpen(false);
-		});
-	}, [clear]);
+	// layer, so the sheet's close is never seen. The sale's id is kept for the receipt prompt.
+	const handlePaid = useCallback(
+		(transactionId: string | null) => {
+			hapticSuccess();
+			setCelebrating(true);
+			setReceiptTxId(transactionId);
+			setShowReceiptPrompt(false);
+			requestAnimationFrame(() => {
+				clear();
+				setBasketOpen(false);
+			});
+		},
+		[clear],
+	);
 
-	// The closing fade has finished onto the cleared, sheet-less screen — retire the flourish.
+	// The closing fade has finished onto the cleared, sheet-less screen — retire the flourish
+	// and raise the receipt prompt (it renders only once a sale id is present).
 	const handleHidden = useCallback(() => {
 		setCelebrating(false);
+		setShowReceiptPrompt(true);
+	}, []);
+
+	// "Oui" — open the just-paid sale's detail as a receipt (an X there returns to the grid).
+	const acceptReceipt = useCallback(() => {
+		setShowReceiptPrompt(false);
+		if (receiptTxId) {
+			router.push({
+				pathname: '/transaction/[id]',
+				params: { id: receiptTxId, origin: 'receipt' },
+			});
+		}
+	}, [receiptTxId, router]);
+
+	// "Non", or the 3s countdown elapsed — dismiss the prompt and drop the kept id.
+	const dismissReceipt = useCallback(() => {
+		setShowReceiptPrompt(false);
+		setReceiptTxId(null);
 	}, []);
 
 	const tabs = useMemo(
@@ -180,7 +210,14 @@ export default function SellScreen() {
 				</>
 			)}
 
-			<BasketFab count={itemCount} onPress={() => setBasketOpen(true)} />
+			{/* Hidden while the receipt prompt is up — the two float at the same bottom-right
+			    corner, and the basket is empty at that point anyway. */}
+			{!showReceiptPrompt && (
+				<BasketFab
+					count={itemCount}
+					onPress={() => setBasketOpen(true)}
+				/>
+			)}
 			<BasketSheet
 				visible={basketOpen}
 				onClose={() => setBasketOpen(false)}
@@ -197,6 +234,13 @@ export default function SellScreen() {
 				visible={celebrating}
 				onHidden={handleHidden}
 			/>
+			{/* Post-payment: once the flourish has faded, offer a receipt for the sale. */}
+			{showReceiptPrompt && receiptTxId && (
+				<ReceiptPrompt
+					onAccept={acceptReceipt}
+					onDismiss={dismissReceipt}
+				/>
+			)}
 		</SafeAreaView>
 	);
 }

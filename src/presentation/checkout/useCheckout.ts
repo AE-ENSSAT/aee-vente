@@ -11,11 +11,15 @@ import type { PaymentMethod } from '@/src/services/PaymentService';
 
 /**
  * Application use-case: pay the current basket total with a method. Keeps payment
- * orchestration out of the view components. `onSuccess` fires on a successful payment so
- * the screen can react — it owns the celebration and clears + closes the basket behind it
- * (clearing is deferred until the flourish is covering, so it's never seen).
+ * orchestration out of the view components. `onSuccess` fires on a successful payment — it
+ * owns the celebration, clears + closes the basket behind it (deferred until the flourish is
+ * covering, so it's never seen). Its argument is the recorded sale's id so the screen can
+ * offer a receipt, or `null` when the sale could not be persisted locally (celebrate anyway,
+ * but there is no stored transaction to open).
  */
-export function useCheckout(onSuccess?: () => void) {
+export function useCheckout(
+	onSuccess?: (transactionId: string | null) => void,
+) {
 	const { totalCents, items } = useBasket();
 	const { pay } = useSumUp();
 	const [busy, setBusy] = useState(false);
@@ -38,14 +42,19 @@ export function useCheckout(onSuccess?: () => void) {
 			try {
 				const result = await pay(method, totalCents);
 				if (result.success) {
+					// SumUp's own code when present, else the (always-set) client id —
+					// the same id the sale is stored under, so the success handler can
+					// open its receipt.
+					const transactionId =
+						result.sumupTransactionId ?? result.transactionId;
 					// Persist the completed sale locally (survives app restarts,
 					// cleared on sign-out). A storage failure must not break the
-					// success flow, so it is caught and ignored.
+					// success flow, so it is caught and ignored — but a receipt is
+					// then not offered (there'd be nothing to open).
+					let stored = false;
 					try {
 						await transactionStore.add({
-							id:
-								result.sumupTransactionId ??
-								result.transactionId,
+							id: transactionId,
 							amountCents: totalCents,
 							method,
 							lines: items.map((item) => ({
@@ -55,10 +64,11 @@ export function useCheckout(onSuccess?: () => void) {
 								unitCents: linePrice(item),
 							})),
 						});
+						stored = true;
 					} catch {
 						// ignore — the payment still succeeded
 					}
-					onSuccess?.();
+					onSuccess?.(stored ? transactionId : null);
 				} else {
 					hapticError();
 					setError(

@@ -138,7 +138,7 @@ export default function TapToPayScreen() {
 						/>
 					}
 					title="Si une carte ne peut pas être lue"
-					text="Si le paiement sans contact échoue, utilisez le terminal de paiement Bluetooth SumUp ou un autre moyen (espèces) comme solution de repli."
+					text="Si le paiement sans contact échoue, utilisez le terminal de paiement Bluetooth ou un autre moyen (espèces) comme solution de repli."
 				/>
 
 				{IS_IOS && (
