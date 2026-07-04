@@ -26,7 +26,7 @@ function formatDate(timestamp: number): string {
 
 /**
  * Transaction history, opened from the settings screen. Reads the locally-persisted sales
- * ({@link transactionStore}); a sale is recorded when a payment succeeds, and the history is
+ * ({@link transactionStore}); a sale is recorded when a payment completes (approved or declined), and the history is
  * cleared on sign-out. Empty until the first real payment goes through.
  */
 export default function TransactionsScreen() {
@@ -137,9 +137,14 @@ function TransactionRow({
 						? 'Tap to Pay sur iPhone'
 						: 'Terminal de paiement'}
 				</Text>
-				<Text style={styles.rowDate}>
-					{formatDate(transaction.timestamp)}
-				</Text>
+				<View style={styles.rowMeta}>
+					<Text style={styles.rowDate}>
+						{formatDate(transaction.timestamp)}
+					</Text>
+					{transaction.status === 'declined' && (
+						<Text style={styles.declinedChip}>Refusé</Text>
+					)}
+				</View>
 			</View>
 			<Text style={styles.rowAmount}>
 				{formatEuros(transaction.amountCents)}
@@ -207,6 +212,17 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 	},
 	rowBody: { flex: 1, gap: 3 },
+	rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+	declinedChip: {
+		fontSize: 12,
+		fontFamily: FONT.bold,
+		color: '#CC324C',
+		backgroundColor: '#FBE4E8',
+		borderRadius: 6,
+		paddingHorizontal: 6,
+		paddingVertical: 1,
+		overflow: 'hidden',
+	},
 	rowMethod: { fontSize: 15, fontFamily: FONT.bold, color: '#1A1A1A' },
 	rowDate: { fontSize: 13, fontFamily: FONT.regular, color: '#767676' },
 	rowAmount: { fontSize: 16, fontFamily: FONT.bold, color: '#1A1A1A' },

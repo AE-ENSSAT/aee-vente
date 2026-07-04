@@ -23,12 +23,17 @@ const IS_IOS = Platform.OS === 'ios';
  * flow (req 4.3): it explains accepting contactless cards (4.5), Apple Pay / digital wallets
  * (4.6), PIN entry (4.7), and the fallback when a card can't be read (4.8). "Voir la
  * démonstration" launches Apple's own interactive education (ProximityReaderDiscovery, iOS
- * 18+, req 4.1); "Activer Tap to Pay" enables it outside a sale (req 3.6).
+ * 18+, req 4.1); "Activer Tap to Pay" enables it outside a sale (req 3.6) and, once the
+ * Terms & Conditions are accepted, presents that education right away (req 4.2), then invites
+ * the merchant to try a first payment (req 3.9).
  */
 export default function TapToPayScreen() {
 	const router = useRouter();
 	const { activateTapToPay, presentTapToPayEducation } = useSumUp();
 	const [busy, setBusy] = useState<null | 'edu' | 'activate'>(null);
+	// True once Tap to Pay has been activated in this session — swaps the activate control
+	// for the "it's ready, try it out" panel (req 3.9).
+	const [activated, setActivated] = useState(false);
 
 	const showDemo = async () => {
 		setBusy('edu');
@@ -49,12 +54,22 @@ export default function TapToPayScreen() {
 		setBusy('activate');
 		try {
 			const status = await activateTapToPay();
-			Alert.alert(
-				'Tap to Pay sur iPhone',
-				status.activated
-					? 'Tap to Pay sur iPhone est activé sur cet iPhone.'
-					: "L'activation n'a pas été finalisée. Vous pourrez réessayer à tout moment.",
-			);
+			if (status.activated) {
+				setActivated(true);
+				// Req 4.2: once the Terms & Conditions are accepted, present Apple's
+				// merchant education right away. Best-effort — it needs iOS 18+, and the
+				// written guide above is the fallback, so a failure is silently ignored.
+				try {
+					await presentTapToPayEducation();
+				} catch {
+					// iOS < 18 or unavailable — the on-screen guide already covers it.
+				}
+			} else {
+				Alert.alert(
+					'Tap to Pay sur iPhone',
+					"L'activation n'a pas été finalisée. Vous pourrez réessayer à tout moment.",
+				);
+			}
 		} catch (e) {
 			Alert.alert(
 				'Activation impossible',
@@ -143,37 +158,85 @@ export default function TapToPayScreen() {
 
 				{IS_IOS && (
 					<View style={styles.actions}>
-						<PrimaryButton
-							label="Voir la démonstration Apple"
-							variant="primary"
-							loading={busy === 'edu'}
-							onPress={showDemo}
-							icon={
-								<Ionicons
-									name="play-circle-outline"
-									size={20}
-									color="#ffffff"
+						{activated ? (
+							<>
+								<View style={styles.readyCard}>
+									<Ionicons
+										name="checkmark-circle"
+										size={30}
+										color="#16875A"
+									/>
+									<Text style={styles.readyTitle}>
+										Tap to Pay sur iPhone est prêt
+									</Text>
+									<Text style={styles.readyText}>
+										Vous pouvez encaisser un paiement sans
+										contact directement avec cet iPhone.
+										Faites un premier essai dès maintenant.
+									</Text>
+								</View>
+								<PrimaryButton
+									label="Encaisser un paiement"
+									variant="primary"
+									onPress={() => router.dismissTo('/sell')}
+									icon={
+										<MaterialIcons
+											name="contactless"
+											size={22}
+											color="#ffffff"
+										/>
+									}
 								/>
-							}
-						/>
-						<PrimaryButton
-							label="Activer Tap to Pay sur iPhone"
-							variant="secondary"
-							loading={busy === 'activate'}
-							onPress={activate}
-							icon={
-								<Ionicons
-									name="card-outline"
-									size={20}
-									color="#ffffff"
+								<PrimaryButton
+									label="Voir la démonstration Apple"
+									variant="secondary"
+									loading={busy === 'edu'}
+									onPress={showDemo}
+									icon={
+										<Ionicons
+											name="play-circle-outline"
+											size={20}
+											color="#ffffff"
+										/>
+									}
 								/>
-							}
-						/>
-						<Text style={styles.note}>
-							L'activation ouvre l'écran d'Apple pour accepter les
-							conditions de Tap to Pay sur iPhone. Elle n'est
-							demandée qu'une seule fois par appareil.
-						</Text>
+							</>
+						) : (
+							<>
+								<PrimaryButton
+									label="Voir la démonstration Apple"
+									variant="primary"
+									loading={busy === 'edu'}
+									onPress={showDemo}
+									icon={
+										<Ionicons
+											name="play-circle-outline"
+											size={20}
+											color="#ffffff"
+										/>
+									}
+								/>
+								<PrimaryButton
+									label="Activer Tap to Pay sur iPhone"
+									variant="secondary"
+									loading={busy === 'activate'}
+									onPress={activate}
+									icon={
+										<Ionicons
+											name="card-outline"
+											size={20}
+											color="#ffffff"
+										/>
+									}
+								/>
+								<Text style={styles.note}>
+									L'activation ouvre l'écran d'Apple pour
+									accepter les conditions de Tap to Pay sur
+									iPhone. Elle n'est demandée qu'une seule
+									fois par appareil.
+								</Text>
+							</>
+						)}
 					</View>
 				)}
 			</ScrollView>
@@ -258,6 +321,29 @@ const styles = StyleSheet.create({
 		lineHeight: 20,
 	},
 	actions: { gap: 10, marginTop: 10 },
+	readyCard: {
+		alignItems: 'center',
+		gap: 8,
+		backgroundColor: '#E4F4EC',
+		borderWidth: 1,
+		borderColor: '#BFE6D2',
+		borderRadius: 14,
+		padding: 18,
+		marginBottom: 2,
+	},
+	readyTitle: {
+		fontSize: 17,
+		fontFamily: FONT.bold,
+		color: '#0F6B45',
+		textAlign: 'center',
+	},
+	readyText: {
+		fontSize: 14,
+		fontFamily: FONT.regular,
+		color: '#2F5D49',
+		textAlign: 'center',
+		lineHeight: 20,
+	},
 	note: {
 		fontSize: 13,
 		fontFamily: FONT.regular,

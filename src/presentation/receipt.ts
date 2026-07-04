@@ -15,6 +15,10 @@ function methodLabel(method: Transaction['method']): string {
 		: 'Terminal de paiement';
 }
 
+function statusLabel(status: Transaction['status']): string {
+	return status === 'declined' ? 'Paiement refusé' : 'Paiement accepté';
+}
+
 /**
  * A plain-text, itemized receipt for a sale. Used as the body of the e-mail / SMS and as
  * the QR payload — so scanning the code reveals the same receipt offline (no backend). Kept
@@ -35,6 +39,7 @@ export function buildReceiptText(tx: Transaction): string {
 		'',
 		`Total : ${formatEuros(tx.amountCents)}`,
 		`Paiement : ${methodLabel(tx.method)}`,
+		`Statut : ${statusLabel(tx.status)}`,
 		`Réf. : ${tx.id}`,
 	].join('\n');
 }

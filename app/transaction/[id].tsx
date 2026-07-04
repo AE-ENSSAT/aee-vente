@@ -122,16 +122,29 @@ export default function TransactionDetailScreen() {
 							<Text style={styles.amount}>
 								{formatEuros(transaction.amountCents)}
 							</Text>
-							<View style={styles.accepted}>
-								<Ionicons
-									name="checkmark-circle"
-									size={18}
-									color="#16875A"
-								/>
-								<Text style={styles.acceptedText}>
-									Paiement accepté
-								</Text>
-							</View>
+							{transaction.status === 'declined' ? (
+								<View style={[styles.badge, styles.declined]}>
+									<Ionicons
+										name="close-circle"
+										size={18}
+										color="#CC324C"
+									/>
+									<Text style={styles.declinedText}>
+										Paiement refusé
+									</Text>
+								</View>
+							) : (
+								<View style={[styles.badge, styles.accepted]}>
+									<Ionicons
+										name="checkmark-circle"
+										size={18}
+										color="#16875A"
+									/>
+									<Text style={styles.acceptedText}>
+										Paiement accepté
+									</Text>
+								</View>
+							)}
 						</View>
 
 						{/* Items */}
@@ -382,16 +395,18 @@ const styles = StyleSheet.create({
 	content: { padding: 20, gap: 24 },
 	amountBlock: { alignItems: 'center', gap: 10, paddingVertical: 16 },
 	amount: { fontSize: 44, fontFamily: FONT.black, color: '#1A1A1A' },
-	accepted: {
+	badge: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 6,
-		backgroundColor: '#E4F4EC',
 		borderRadius: 999,
 		paddingHorizontal: 12,
 		paddingVertical: 5,
 	},
+	accepted: { backgroundColor: '#E4F4EC' },
 	acceptedText: { fontSize: 14, fontFamily: FONT.bold, color: '#16875A' },
+	declined: { backgroundColor: '#FBE4E8' },
+	declinedText: { fontSize: 14, fontFamily: FONT.bold, color: '#CC324C' },
 	card: {
 		backgroundColor: '#ffffff',
 		borderWidth: 1,

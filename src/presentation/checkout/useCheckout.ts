@@ -15,7 +15,8 @@ import type { PaymentMethod } from '@/src/services/PaymentService';
  * owns the celebration, clears + closes the basket behind it (deferred until the flourish is
  * covering, so it's never seen). Its argument is the recorded sale's id so the screen can
  * offer a receipt, or `null` when the sale could not be persisted locally (celebrate anyway,
- * but there is no stored transaction to open).
+ * but there is no stored transaction to open). Declined attempts are also recorded (so a
+ * confidential receipt stays reachable from the history — Apple Tap to Pay req 5.10).
  */
 export function useCheckout(
 	onSuccess?: (transactionId: string | null) => void,
@@ -39,6 +40,32 @@ export function useCheckout(
 			// are never affected.
 			const tooOldForTapToPay =
 				method === 'tapToPay' && isTapToPayIosTooOld();
+			// Snapshot the basket into the local store (survives restarts, cleared on
+			// sign-out). Records approved sales AND declined attempts, so a confidential
+			// receipt can still be offered for a decline — Apple Tap to Pay req 5.10.
+			// Best-effort: a storage failure must never break the payment flow.
+			const persist = async (
+				id: string,
+				status: 'approved' | 'declined',
+			): Promise<boolean> => {
+				try {
+					await transactionStore.add({
+						id,
+						amountCents: totalCents,
+						method,
+						status,
+						lines: items.map((item) => ({
+							productName: item.product.name,
+							variantName: item.variant?.name ?? null,
+							quantity: item.quantity,
+							unitCents: linePrice(item),
+						})),
+					});
+					return true;
+				} catch {
+					return false;
+				}
+			};
 			try {
 				const result = await pay(method, totalCents);
 				if (result.success) {
@@ -47,29 +74,13 @@ export function useCheckout(
 					// open its receipt.
 					const transactionId =
 						result.sumupTransactionId ?? result.transactionId;
-					// Persist the completed sale locally (survives app restarts,
-					// cleared on sign-out). A storage failure must not break the
-					// success flow, so it is caught and ignored — but a receipt is
-					// then not offered (there'd be nothing to open).
-					let stored = false;
-					try {
-						await transactionStore.add({
-							id: transactionId,
-							amountCents: totalCents,
-							method,
-							lines: items.map((item) => ({
-								productName: item.product.name,
-								variantName: item.variant?.name ?? null,
-								quantity: item.quantity,
-								unitCents: linePrice(item),
-							})),
-						});
-						stored = true;
-					} catch {
-						// ignore — the payment still succeeded
-					}
+					const stored = await persist(transactionId, 'approved');
 					onSuccess?.(stored ? transactionId : null);
 				} else {
+					// A card read that completed but was refused: record it as a declined
+					// transaction (its receipt is then reachable from the history), then
+					// surface the refusal.
+					await persist(result.transactionId, 'declined');
 					hapticError();
 					setError(
 						tooOldForTapToPay
