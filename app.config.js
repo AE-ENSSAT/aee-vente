@@ -116,6 +116,10 @@ module.exports = () => ({
 			// Adds a real Android release signing config (falls back to debug when the
 			// AEE_UPLOAD_* Gradle props are absent). See plugin/withAndroidSigning.js.
 			'./plugin/withAndroidSigning',
+			// Replaces Expo's WEBP launcher raster with a plain PNG ic_launcher (and
+			// strips any adaptive XML) so Firebase App Distribution can decode the
+			// icon instead of showing a generic "A". See plugin/withAndroidLegacyIcon.js.
+			'./plugin/withAndroidLegacyIcon',
 		],
 		experiments: {
 			typedRoutes: true,
