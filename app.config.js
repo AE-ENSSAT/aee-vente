@@ -45,7 +45,7 @@ module.exports = () => ({
 			},
 			infoPlist: {
 				NSBluetoothAlwaysUsageDescription:
-					'AEE Vente uses Bluetooth to connect to the SumUp card reader.',
+					'AEE Vente uses Bluetooth to connect to the card reader.',
 				NSLocationWhenInUseUsageDescription:
 					'AEE Vente needs your location to accept card payments securely.',
 				// Tap to Pay on iPhone requires an A12 Bionic chip or later (iPhone XS+).
