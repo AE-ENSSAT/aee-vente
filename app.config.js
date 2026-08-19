@@ -1,7 +1,4 @@
 /** Expo app config (dynamic) — see CLAUDE.md for the native build constraints. */
-const fs = require('node:fs');
-const path = require('node:path');
-
 // Feeds `expo.version` and the User-Agent; required here so package.json isn't bundled.
 const pkg = require('./package.json');
 
@@ -37,10 +34,8 @@ module.exports = () => ({
 				// The SSO consent alert shows CFBundleName, not CFBundleDisplayName, and
 				// prebuild would leave it as the space-stripped target name ("AEEVente").
 				CFBundleName: APP_NAME,
-				NSBluetoothAlwaysUsageDescription:
-					`${APP_NAME} uses Bluetooth to connect to the card reader.`,
-				NSLocationWhenInUseUsageDescription:
-					`${APP_NAME} needs your location to accept card payments securely.`,
+				NSBluetoothAlwaysUsageDescription: `${APP_NAME} uses Bluetooth to connect to the card reader.`,
+				NSLocationWhenInUseUsageDescription: `${APP_NAME} needs your location to accept card payments securely.`,
 				// Tap to Pay needs A12+ (checklist req 1.3). This also blocks pre-A12 iPhones
 				// that could still use the Bluetooth reader — drop the key to support them.
 				UIRequiredDeviceCapabilities: [

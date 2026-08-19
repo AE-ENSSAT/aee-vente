@@ -15,9 +15,8 @@ export interface SellGridsState {
 }
 
 /**
- * Loads sell grids from the {@link sellGridRepository} — the component never learns whether
- * they came from the API or dummy data. Keyed on the tenant: each association has its own
- * catalogue.
+ * Loads sell grids from the {@link sellGridRepository}, which the component never sees past.
+ * Keyed on the tenant: each association has its own catalogue.
  */
 export function useSellGrids(): SellGridsState {
 	const { tenant } = useAuth();

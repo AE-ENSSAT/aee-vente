@@ -59,7 +59,7 @@ build with Developer Options/USB debugging OFF**; the Bluetooth reader works in 
 ## App architecture (the Expo app)
 
 Clean layered structure: the UI depends on **interfaces**, and a small "composition root"
-binds each interface to a concrete impl — so the dummy data and the SumUp module can be
+binds each interface to a concrete impl — so the data source and the SumUp module can be
 swapped without touching screens. Each lower layer is reached only through its interface.
 
 **Screens** (`app/`, expo-router): [_layout.tsx](app/_layout.tsx) nests the providers
@@ -101,8 +101,7 @@ resumed at start-up skips it;
 - **API** (`src/api/`) — see **The AEE Manager API** below.
 - **Data** (`src/data/`) — [ApiSellGridRepository.ts](src/data/ApiSellGridRepository.ts)
   maps the API's grids onto the domain, bound in
-  [repositories.ts](src/data/repositories.ts). `DummySellGridRepository` is still there —
-  bind it instead to run the sell screen with no backend.
+  [repositories.ts](src/data/repositories.ts).
 - **Domain** (`src/domain/`) — [models.ts](src/domain/models.ts) (`Product`, `SellGrid`,
   `BasketItem`) + the `SellGridRepository` interface. No dependencies.
 
