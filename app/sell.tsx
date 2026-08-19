@@ -30,7 +30,7 @@ import { useBottomSpace } from '@/src/presentation/useBottomSpace';
 
 /** The sell page: grid selector + product grid, with the floating basket + sheet. */
 export default function SellScreen() {
-	const { grids, loading, error } = useSellGrids();
+	const { grids, loading, error, refreshing, refresh } = useSellGrids();
 	const { addProduct, itemCount, clear } = useBasket();
 	const { width } = useWindowDimensions();
 	const router = useRouter();
@@ -180,7 +180,9 @@ export default function SellScreen() {
 				<View style={styles.center}>
 					<ActivityIndicator />
 				</View>
-			) : error ? (
+			) : /* An error with a catalogue already on screen came from a pull-to-refresh:
+			      keep selling on what we have rather than blanking the till. */
+			error && !grids.length ? (
 				<View style={styles.center}>
 					<Text style={styles.error}>
 						Erreur de chargement : {error}
@@ -208,6 +210,8 @@ export default function SellScreen() {
 									onSelectProduct={tapProduct}
 									onLongPressProduct={openDetail}
 									bottomInset={gridBottomInset}
+									refreshing={refreshing}
+									onRefresh={refresh}
 								/>
 							</View>
 						))}

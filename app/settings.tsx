@@ -10,37 +10,57 @@ import {
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@/src/presentation/auth/AuthContext';
 import { useBasket } from '@/src/presentation/basket/BasketContext';
 import { FONT } from '@/src/presentation/theme';
 
-/**
- * Placeholder seller identity shown in the header. Wire this to the real signed-in account
- * (name + avatar URL) once authentication / the SumUp account is connected — replace the
- * `Avatar` person icon with an `<Image source={{ uri }} />`.
- */
-const SELLER = { name: 'Vendeur AEE', role: 'AEE Vente' };
+/** Roles as the API names them, in the wording a seller would recognise. */
+const ROLE_LABELS: Record<string, string> = {
+	admin: 'Administrateur',
+	manager: 'Gestionnaire',
+	vendeur: 'Vendeur',
+	member: 'Membre',
+};
 
 /**
  * Account / settings screen, opened from the sell page. Shows the seller (name + picture),
- * then a menu: transaction history, the Tap to Pay on iPhone help/education page, and — last
- * — sign out.
+ * then a menu: transaction history, the Tap to Pay on iPhone help/education page, the
+ * association picker, and — last — sign out. The two rows that end the current context sit
+ * together at the bottom.
  */
 export default function SettingsScreen() {
 	const router = useRouter();
 	const navigation = useNavigation();
 	const { clear } = useBasket();
+	const { profile, tenant, user, signOut } = useAuth();
 
-	const disconnect = () => {
-		// Sign out: empty the basket, then RESET the navigation stack to the login screen
+	const disconnect = async () => {
+		// Sign out: empty the basket and end the Keycloak session (tokens revoked and
+		// wiped from secure storage), then RESET the navigation stack to the login screen
 		// so it becomes a fresh root with nothing behind it — a swipe-back / Android back
 		// no longer returns to the app. (Plain `replace` only swaps the current screen and
-		// leaves the sell page underneath.) The transaction history is wiped on the next
-		// login. Wire a real SumUp logout here once auth is connected.
+		// leaves the sell page underneath.) The transaction history is wiped on next login.
 		clear();
+		await signOut();
 		// `name: 'index'` is the login route (app/index.tsx). Cast: expo-router types
 		// `reset` route names as `never` here since this navigator's param list is generic.
 		navigation.reset({ index: 0, routes: [{ name: 'index' as never }] });
 	};
+
+	// The API knows sellers only by their login handle (`aee-test`); their actual name
+	// lives in Keycloak, so prefer that. The chain degrades one step at a time — full name,
+	// the realm's own `name` claim, the handle — so the header is never blank, whichever
+	// lookup is still in flight or unreachable.
+	const sellerName =
+		[user?.givenName, user?.familyName].filter(Boolean).join(' ') ||
+		user?.name ||
+		user?.username ||
+		profile?.username ||
+		'Vendeur';
+	const sellerRole =
+		profile?.roles.map((role) => ROLE_LABELS[role] ?? role).join(' · ') ??
+		tenant?.name ??
+		'';
 
 	return (
 		<SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -68,8 +88,13 @@ export default function SettingsScreen() {
 						<Ionicons name="person" size={34} color="#ffffff" />
 					</View>
 					<View style={styles.profileText}>
-						<Text style={styles.name}>{SELLER.name}</Text>
-						<Text style={styles.role}>{SELLER.role}</Text>
+						<Text style={styles.name}>{sellerName}</Text>
+						{sellerRole ? (
+							<Text style={styles.role}>{sellerRole}</Text>
+						) : null}
+						{tenant ? (
+							<Text style={styles.tenant}>{tenant.name}</Text>
+						) : null}
 					</View>
 				</View>
 
@@ -100,6 +125,20 @@ export default function SettingsScreen() {
 							onPress={() => router.push('/tap-to-pay')}
 						/>
 					)}
+					{/* Always available, even to a seller who belongs to a single
+					    association: the picker is also where an invite code joins
+					    another one. */}
+					<MenuRow
+						icon={
+							<Ionicons
+								name="swap-horizontal-outline"
+								size={22}
+								color="#A91B3A"
+							/>
+						}
+						label="Changer d'association"
+						onPress={() => router.push('/tenant')}
+					/>
 					<MenuRow
 						icon={
 							<Ionicons
@@ -193,6 +232,7 @@ const styles = StyleSheet.create({
 	profileText: { flex: 1, gap: 3 },
 	name: { fontSize: 20, fontFamily: FONT.black, color: '#1A1A1A' },
 	role: { fontSize: 14, fontFamily: FONT.regular, color: '#4A4A4A' },
+	tenant: { fontSize: 13, fontFamily: FONT.regular, color: '#8A8378' },
 	menu: { gap: 10 },
 	row: {
 		flexDirection: 'row',

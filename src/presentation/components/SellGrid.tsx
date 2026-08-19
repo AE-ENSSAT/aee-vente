@@ -1,9 +1,11 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import type { Product, SellGrid as SellGridModel } from '@/src/domain/models';
 import { APP_MARGIN } from '../theme';
 import { ProductTile } from './ProductTile';
 
 const GAP = 10;
+/** The app red, for the pull-to-refresh spinner (iOS `tintColor`, Android `colors`). */
+const REFRESH_COLOR = '#A91B3A';
 
 interface Props {
 	grid: SellGridModel;
@@ -15,6 +17,10 @@ interface Props {
 	 * basket button's clearance — so the last product row is never hidden under either.
 	 */
 	bottomInset?: number;
+	/** Pull down on the grid to re-read the catalogue. Omit to disable. */
+	onRefresh?: () => void;
+	/** True while {@link onRefresh} is in flight — drives the pull-to-refresh spinner. */
+	refreshing?: boolean;
 }
 
 interface Cell {
@@ -40,6 +46,8 @@ export function SellGrid({
 	onSelectProduct,
 	onLongPressProduct,
 	bottomInset = 0,
+	onRefresh,
+	refreshing = false,
 }: Props) {
 	// Index the placed products by cell for O(1) lookup while building the matrix.
 	const byCell = new Map<string, Product>();
@@ -66,6 +74,20 @@ export function SellGrid({
 				styles.content,
 				{ paddingBottom: APP_MARGIN + bottomInset },
 			]}
+			// Pull-to-refresh belongs on this vertical list, not on the horizontal pager
+			// around it: a scroll view only refreshes on the axis it scrolls. Each
+			// platform keeps its own native feel — iOS pulls the grid down with the
+			// bounce, Android slides a spinner over a grid that stays put.
+			refreshControl={
+				onRefresh && (
+					<RefreshControl
+						refreshing={refreshing}
+						onRefresh={onRefresh}
+						tintColor={REFRESH_COLOR}
+						colors={[REFRESH_COLOR]}
+					/>
+				)
+			}
 		>
 			{rows.map((row) => (
 				<View key={row.key} style={styles.row}>

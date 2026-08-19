@@ -1,16 +1,16 @@
 import Constants from 'expo-constants';
 
 /**
- * SumUp keys, surfaced from `app.config.js` `extra` (sourced from .env).
- * Replace with a backend-issued token in production.
+ * SumUp's affiliate key, surfaced from `app.config.js` `extra` (sourced from .env).
+ *
+ * The login **access token** is deliberately not here: it is the association's own
+ * merchant key and comes from the API per tenant (`GET /payment-method-config` →
+ * `paymentConfigService`). Shipping one in the bundle would both leak a secret and pay
+ * every association's takings into a single SumUp account.
  */
 const extra = (Constants.expoConfig?.extra ?? {}) as {
 	sumupAffiliateKey?: string;
-	sumupAccessToken?: string;
 };
 
-/** Affiliate key (`sup_afk_...`). */
+/** Affiliate key (`sup_afk_...`) — identifies the app, not the merchant. */
 export const SUMUP_AFFILIATE_KEY = extra.sumupAffiliateKey ?? '';
-
-/** Secret API key used as the login access token (`sup_sk_...`). */
-export const SUMUP_ACCESS_TOKEN = extra.sumupAccessToken ?? '';

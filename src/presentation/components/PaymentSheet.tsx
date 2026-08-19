@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useBasket } from '@/src/presentation/basket/BasketContext';
 import { useCheckout } from '@/src/presentation/checkout/useCheckout';
+import { usePaymentMethods } from '@/src/presentation/checkout/usePaymentMethods';
 import { formatEuros } from '@/src/presentation/money';
 import type { PaymentMethod } from '@/src/services/PaymentService';
 import { BOTTOM_GAP, FONT } from '../theme';
@@ -59,6 +60,8 @@ export function PaymentSheet({ visible, onClose, onPaid }: Props) {
 	const { totalCents } = useBasket();
 	const { checkout, busy, pendingMethod, error, dismissError } =
 		useCheckout(onPaid);
+	// Which rails this association actually takes — the cash-only ones show no card buttons.
+	const enabledMethods = usePaymentMethods();
 	const [mode, setMode] = useState<Mode>('methods');
 	// Opts out of true-sheet's auto safe-area (`insetAdjustment="never"`), so the last button
 	// clears the system bar itself — same as the basket sheet.
@@ -201,6 +204,7 @@ export function PaymentSheet({ visible, onClose, onPaid }: Props) {
 							exiting={SlideOutLeft.duration(SLIDE_MS)}
 						>
 							<PayButtons
+								enabledMethods={enabledMethods}
 								pendingMethod={pendingMethod}
 								error={error}
 								onDismissError={dismissError}

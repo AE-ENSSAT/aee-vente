@@ -1,0 +1,5 @@
+bunx expo run:ios --device
+bunx expo run:ios --device --configuration Release
+
+bunx expo run:android --device
+bunx expo run:android --device --variant release

@@ -1,5 +1,5 @@
 import { PermissionsAndroid, Platform } from 'react-native';
-import { SUMUP_ACCESS_TOKEN, SUMUP_AFFILIATE_KEY } from '@/constants/sumup';
+import { SUMUP_AFFILIATE_KEY } from '@/constants/sumup';
 import { SumUp } from '@/modules/sumup-tap-to-pay-sdk-react-native';
 import type {
 	PaymentMethod,
@@ -27,26 +27,60 @@ async function requestBluetoothPermissions(): Promise<boolean> {
 
 /**
  * {@link PaymentService} backed by the SumUp wrapper module. Logging in is shared and
- * de-duplicated: the first `prepare()`/`pay()` starts one login and everyone awaits it.
+ * de-duplicated: `prepare()` starts one login and every payment awaits it.
+ *
+ * The access token belongs to the **tenant**, not to the build — each association has its
+ * own SumUp merchant account (see `paymentConfigService`). The affiliate key still comes
+ * from `.env`: it identifies the app rather than the merchant.
  */
 export class SumUpPaymentService implements PaymentService {
-	private loginPromise: Promise<unknown> | null = null;
+	/** The tenant's key, kept so a login that failed can be retried on the next payment. */
+	private token: string | null = null;
+	/** The token the live session was opened with, and the login itself. */
+	private session: { token: string; login: Promise<unknown> } | null = null;
 
 	private ensureLoggedIn(): Promise<unknown> {
-		if (!this.loginPromise) {
-			this.loginPromise = SumUp.login(
-				SUMUP_ACCESS_TOKEN,
-				SUMUP_AFFILIATE_KEY,
-			).catch((error) => {
-				this.loginPromise = null; // let the next call retry
-				throw error;
-			});
+		if (this.session) {
+			return this.session.login;
 		}
-		return this.loginPromise;
+		if (this.token) {
+			// A pre-login that failed (offline at start-up, say) is retried here rather
+			// than failing the sale outright.
+			return this.login(this.token);
+		}
+		// No key at all: refusing beats charging a card through whichever merchant
+		// account happened to be logged in last.
+		throw new Error(
+			'Aucune clé SumUp pour cette association — vérifiez sa configuration de paiement.',
+		);
 	}
 
-	async prepare(): Promise<void> {
-		await this.ensureLoggedIn();
+	/** One login per token, shared by every caller; a new token switches account. */
+	private login(accessToken: string): Promise<unknown> {
+		if (this.session?.token === accessToken) {
+			return this.session.login;
+		}
+		// A different key means a different merchant account, so the previous session is
+		// ended first — otherwise the SDK would keep taking money into the association we
+		// just left. Best-effort: a failed logout must not block the new login.
+		const previous = this.session;
+		this.token = accessToken;
+		const login = (
+			previous ? SumUp.logout().catch(() => undefined) : Promise.resolve()
+		)
+			.then(() => SumUp.login(accessToken, SUMUP_AFFILIATE_KEY))
+			.catch((error) => {
+				if (this.session?.login === login) {
+					this.session = null; // let the next call retry
+				}
+				throw error;
+			});
+		this.session = { token: accessToken, login };
+		return login;
+	}
+
+	async prepare(accessToken: string): Promise<void> {
+		await this.login(accessToken);
 	}
 
 	async pay(

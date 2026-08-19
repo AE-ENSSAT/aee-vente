@@ -19,8 +19,12 @@ export type CheckoutMethod = PaymentMethod | 'cash';
  * SumUp module directly, so the payment backend can be mocked or replaced.
  */
 export interface PaymentService {
-	/** Make the payment methods ready (log in). Idempotent; safe to call repeatedly. */
-	prepare(): Promise<void>;
+	/**
+	 * Make the payment methods ready by logging in with `accessToken` — the *tenant's own*
+	 * SumUp key, from `GET /payment-method-config`, so takings land in the association
+	 * being sold for. Idempotent for a given token; a different one switches account.
+	 */
+	prepare(accessToken: string): Promise<void>;
 	/** Charge `amountCents` (integer minor units) with `method`. Resolves a result map. */
 	pay(method: PaymentMethod, amountCents: number): Promise<PaymentResult>;
 	/** Open SumUp's card-reader settings / pairing screen. */

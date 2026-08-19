@@ -1,0 +1,3291 @@
+{
+	"openapi": "3.0.0",
+	"paths": {
+		"/tenants/join": {
+			"post": {
+				"operationId": "join",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/JoinTenantDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/JoinResultDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." }
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Join a tenant with an invite code (D40)",
+				"tags": ["Tenants"]
+			}
+		},
+		"/me": {
+			"get": {
+				"operationId": "me",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MeDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." }
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Current user: identity + platform-operator capability",
+				"tags": ["Tenants"]
+			}
+		},
+		"/me/tenants": {
+			"get": {
+				"operationId": "myTenants",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/MyTenantDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." }
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List the tenants I belong to (with my roles)",
+				"tags": ["Tenants"]
+			}
+		},
+		"/products": {
+			"get": {
+				"operationId": "listProducts",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/ProductResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List products (active only unless the caller manages catalogue)",
+				"tags": ["Products"]
+			},
+			"post": {
+				"operationId": "createProduct",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateProductDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProductResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create a product (external + member price + stock)",
+				"tags": ["Products"]
+			}
+		},
+		"/products/{id}": {
+			"get": {
+				"operationId": "getProduct",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProductResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Get a product",
+				"tags": ["Products"]
+			},
+			"patch": {
+				"operationId": "updateProduct",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateProductDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProductResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Update a product",
+				"tags": ["Products"]
+			},
+			"delete": {
+				"operationId": "deleteProduct",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Archive a product (soft delete — preserves sale history)",
+				"tags": ["Products"]
+			}
+		},
+		"/products/{id}/variants": {
+			"get": {
+				"operationId": "listVariants",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/ProductResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List a product’s variants",
+				"tags": ["Products"]
+			},
+			"post": {
+				"operationId": "createVariant",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateProductDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProductResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create a variant (sub-product) under a product",
+				"tags": ["Products"]
+			}
+		},
+		"/products/{id}/image": {
+			"put": {
+				"operationId": "setProductImage",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProductResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Upload or replace a product photo (jpeg/png/webp, ≤ 512 KB)",
+				"tags": ["Products"]
+			},
+			"delete": {
+				"operationId": "deleteProductImage",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Delete a product photo",
+				"tags": ["Products"]
+			}
+		},
+		"/products/{id}/stock": {
+			"get": {
+				"operationId": "getProductStock",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/StockResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Get product stock",
+				"tags": ["Products"]
+			},
+			"put": {
+				"operationId": "setProductStock",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetStockDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/StockResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Set absolute product stock",
+				"tags": ["Products"]
+			}
+		},
+		"/products/{id}/option-groups": {
+			"get": {
+				"operationId": "listOptionGroups",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/OptionGroupResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List a product’s option groups",
+				"tags": ["Products"]
+			},
+			"post": {
+				"operationId": "createOptionGroup",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateOptionGroupDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OptionGroupResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create an option group on a product",
+				"tags": ["Products"]
+			}
+		},
+		"/option-groups/{groupId}": {
+			"patch": {
+				"operationId": "updateOptionGroup",
+				"parameters": [
+					{
+						"name": "groupId",
+						"required": true,
+						"in": "path",
+						"description": "Option group id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateOptionGroupDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OptionGroupResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Update an option group",
+				"tags": ["Products"]
+			},
+			"delete": {
+				"operationId": "deleteOptionGroup",
+				"parameters": [
+					{
+						"name": "groupId",
+						"required": true,
+						"in": "path",
+						"description": "Option group id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Delete an option group (and its options)",
+				"tags": ["Products"]
+			}
+		},
+		"/option-groups/{groupId}/options": {
+			"post": {
+				"operationId": "createOption",
+				"parameters": [
+					{
+						"name": "groupId",
+						"required": true,
+						"in": "path",
+						"description": "Option group id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateOptionDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OptionResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Add an option to a group",
+				"tags": ["Products"]
+			}
+		},
+		"/options/{optionId}": {
+			"patch": {
+				"operationId": "updateOption",
+				"parameters": [
+					{
+						"name": "optionId",
+						"required": true,
+						"in": "path",
+						"description": "Option id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateOptionDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OptionResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Update an option",
+				"tags": ["Products"]
+			},
+			"delete": {
+				"operationId": "deleteOption",
+				"parameters": [
+					{
+						"name": "optionId",
+						"required": true,
+						"in": "path",
+						"description": "Option id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Delete an option",
+				"tags": ["Products"]
+			}
+		},
+		"/grids": {
+			"get": {
+				"operationId": "listGrids",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/GridResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List grids (active only unless the caller manages catalogue)",
+				"tags": ["Grids"]
+			},
+			"post": {
+				"operationId": "createGrid",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateGridDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GridResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create a grid",
+				"tags": ["Grids"]
+			}
+		},
+		"/grids/reorder": {
+			"put": {
+				"operationId": "reorderGrids",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ReorderDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Reorder grids (drag-and-drop)",
+				"tags": ["Grids"]
+			}
+		},
+		"/grids/{id}": {
+			"get": {
+				"operationId": "getGrid",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GridViewDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Get a grid with products + prices + stock",
+				"tags": ["Grids"]
+			},
+			"patch": {
+				"operationId": "updateGrid",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateGridDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GridResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Update a grid",
+				"tags": ["Grids"]
+			},
+			"delete": {
+				"operationId": "removeGrid",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Delete a grid",
+				"tags": ["Grids"]
+			}
+		},
+		"/grids/{id}/items": {
+			"post": {
+				"operationId": "addGridItem",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AddGridItemDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GridViewDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Add a product to a grid",
+				"tags": ["Grids"]
+			}
+		},
+		"/grids/{id}/items/reorder": {
+			"put": {
+				"operationId": "reorderGridItems",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ReorderDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GridViewDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Reorder a grid’s items (drag-and-drop)",
+				"tags": ["Grids"]
+			}
+		},
+		"/grids/{id}/items/{productId}": {
+			"delete": {
+				"operationId": "removeGridItem",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"description": "Grid id",
+						"schema": { "format": "uuid", "type": "string" }
+					},
+					{
+						"name": "productId",
+						"required": true,
+						"in": "path",
+						"description": "Product id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Remove a product from a grid",
+				"tags": ["Grids"]
+			}
+		},
+		"/orders": {
+			"post": {
+				"operationId": "createOrder",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateOrderDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SaleResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create an order — cash finalizes; a card mean opens it pending",
+				"tags": ["Sales"]
+			}
+		},
+		"/orders/reconcile": {
+			"post": {
+				"operationId": "reconcileOrders",
+				"parameters": [],
+				"responses": {
+					"201": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Reconcile pending card orders against SumUp (D24)",
+				"tags": ["Sales"]
+			}
+		},
+		"/orders/{id}/confirm": {
+			"post": {
+				"operationId": "confirmOrder",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ConfirmOrderDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SaleResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Confirm a card order → finalize the sale",
+				"tags": ["Sales"]
+			}
+		},
+		"/orders/{id}/decline": {
+			"post": {
+				"operationId": "declineOrder",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SaleResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Decline a card order — payment refused → order cancelled",
+				"tags": ["Sales"]
+			}
+		},
+		"/sales/{id}/refund": {
+			"post": {
+				"operationId": "refund",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RefundSaleDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SaleResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Cancel / refund a completed sale (D12)",
+				"tags": ["Sales"]
+			}
+		},
+		"/sales": {
+			"get": {
+				"operationId": "listSales",
+				"parameters": [
+					{
+						"name": "from",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive start (ISO 8601)",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "to",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive end (ISO 8601)",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "method",
+						"required": false,
+						"in": "query",
+						"schema": { "type": "string", "enum": ["cash", "card"] }
+					},
+					{
+						"name": "status",
+						"required": false,
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["pending", "completed", "cancelled"]
+						}
+					},
+					{
+						"name": "page",
+						"required": false,
+						"in": "query",
+						"schema": {
+							"minimum": 1,
+							"default": 1,
+							"type": "number"
+						}
+					},
+					{
+						"name": "pageSize",
+						"required": false,
+						"in": "query",
+						"schema": {
+							"minimum": 1,
+							"maximum": 200,
+							"default": 50,
+							"type": "number"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PaginatedSalesDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List sales (paginated, filterable)",
+				"tags": ["Sales"]
+			}
+		},
+		"/sales/{id}": {
+			"get": {
+				"operationId": "getSale",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SaleResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Get a sale with its line items",
+				"tags": ["Sales"]
+			}
+		},
+		"/reports/revenue": {
+			"get": {
+				"operationId": "revenue",
+				"parameters": [
+					{
+						"name": "from",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive start (ISO 8601)",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "to",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive end (ISO 8601)",
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RevenueResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Revenue (CA) by payment method over a period",
+				"tags": ["Reports"]
+			}
+		},
+		"/reports/products": {
+			"get": {
+				"operationId": "salesByProduct",
+				"parameters": [
+					{
+						"name": "from",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive start (ISO 8601)",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "to",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive end (ISO 8601)",
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/ProductSalesRowDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Sales aggregated by product (best-sellers)",
+				"tags": ["Reports"]
+			}
+		},
+		"/reports/timeseries": {
+			"get": {
+				"operationId": "revenueTimeseries",
+				"parameters": [
+					{
+						"name": "from",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive start (ISO 8601)",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "to",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive end (ISO 8601)",
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/RevenueBucketDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Daily revenue time-series for the dashboard",
+				"tags": ["Reports"]
+			}
+		},
+		"/reports/sales.csv": {
+			"get": {
+				"operationId": "exportCsv",
+				"parameters": [
+					{
+						"name": "from",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive start (ISO 8601)",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "to",
+						"required": false,
+						"in": "query",
+						"description": "Inclusive end (ISO 8601)",
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": { "type": "string" }
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Export sales as CSV (trésorier)",
+				"tags": ["Reports"]
+			}
+		},
+		"/adherents/search": {
+			"get": {
+				"operationId": "searchAdherents",
+				"parameters": [
+					{
+						"name": "q",
+						"required": false,
+						"in": "query",
+						"description": "Name/email substring.",
+						"schema": { "maxLength": 120, "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/AdherentSearchResultDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Search adherents (to attach member pricing)",
+				"tags": ["Adherents"]
+			}
+		},
+		"/adherents": {
+			"get": {
+				"operationId": "listAdherents",
+				"parameters": [
+					{
+						"name": "q",
+						"required": false,
+						"in": "query",
+						"description": "Name/email substring.",
+						"schema": { "maxLength": 120, "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/PersonResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List/search adherents (full registry)",
+				"tags": ["Adherents"]
+			},
+			"post": {
+				"operationId": "createAdherent",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreatePersonDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PersonResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Register an adherent",
+				"tags": ["Adherents"]
+			}
+		},
+		"/adherents/{id}": {
+			"get": {
+				"operationId": "getAdherent",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PersonResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Get an adherent",
+				"tags": ["Adherents"]
+			},
+			"patch": {
+				"operationId": "updateAdherent",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdatePersonDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PersonResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Update an adherent",
+				"tags": ["Adherents"]
+			},
+			"delete": {
+				"operationId": "removeAdherent",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"204": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Delete an adherent",
+				"tags": ["Adherents"]
+			}
+		},
+		"/adherents/{id}/memberships": {
+			"post": {
+				"operationId": "addMembership",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateMembershipDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PersonResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Add a membership to an adherent",
+				"tags": ["Adherents"]
+			}
+		},
+		"/adherents/{id}/memberships/{membershipId}/expire": {
+			"post": {
+				"operationId": "expireMembership",
+				"parameters": [
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"description": "Person id",
+						"schema": { "format": "uuid", "type": "string" }
+					},
+					{
+						"name": "membershipId",
+						"required": true,
+						"in": "path",
+						"description": "Membership id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PersonResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Expire a membership",
+				"tags": ["Adherents"]
+			}
+		},
+		"/academic-years": {
+			"get": {
+				"operationId": "listYears",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/AcademicYearResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List academic years",
+				"tags": ["Adherents"]
+			},
+			"post": {
+				"operationId": "createYear",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateAcademicYearDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AcademicYearResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create an academic year",
+				"tags": ["Adherents"]
+			}
+		},
+		"/academic-years/{yearId}": {
+			"patch": {
+				"operationId": "updateYear",
+				"parameters": [
+					{
+						"name": "yearId",
+						"required": true,
+						"in": "path",
+						"description": "Academic year id",
+						"schema": { "format": "uuid", "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateAcademicYearDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AcademicYearResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Update an academic year (e.g. set current)",
+				"tags": ["Adherents"]
+			}
+		},
+		"/members": {
+			"get": {
+				"operationId": "listMembers",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/MemberRolesResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List tenant members with their roles",
+				"tags": ["Members & settings"]
+			}
+		},
+		"/members/{userSub}/roles": {
+			"get": {
+				"operationId": "listRoles",
+				"parameters": [
+					{
+						"name": "userSub",
+						"required": true,
+						"in": "path",
+						"description": "Keycloak subject (user id)",
+						"schema": { "maxLength": 255, "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MemberRolesResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List a member's roles",
+				"tags": ["Members & settings"]
+			}
+		},
+		"/members/{userSub}/roles/{role}": {
+			"put": {
+				"operationId": "grant",
+				"parameters": [
+					{
+						"name": "userSub",
+						"required": true,
+						"in": "path",
+						"description": "Keycloak subject (user id)",
+						"schema": { "maxLength": 255, "type": "string" }
+					},
+					{
+						"name": "role",
+						"required": true,
+						"in": "path",
+						"schema": {
+							"type": "string",
+							"enum": ["admin", "manager", "vendeur", "member"]
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MemberRolesResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Grant a role to a member (idempotent)",
+				"tags": ["Members & settings"]
+			},
+			"delete": {
+				"operationId": "revoke",
+				"parameters": [
+					{
+						"name": "userSub",
+						"required": true,
+						"in": "path",
+						"description": "Keycloak subject (user id)",
+						"schema": { "maxLength": 255, "type": "string" }
+					},
+					{
+						"name": "role",
+						"required": true,
+						"in": "path",
+						"schema": {
+							"type": "string",
+							"enum": ["admin", "manager", "vendeur", "member"]
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MemberRolesResponseDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Revoke a role from a member (idempotent)",
+				"tags": ["Members & settings"]
+			}
+		},
+		"/invite-codes": {
+			"post": {
+				"operationId": "createInviteCode",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateInviteCodeDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/InviteCodeCreatedDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create an invite code (raw code shown once)",
+				"tags": ["Members & settings"]
+			},
+			"get": {
+				"operationId": "listInviteCodes",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/InviteCodeDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "List invite codes (no raw code)",
+				"tags": ["Members & settings"]
+			}
+		},
+		"/invite-codes/{codeId}": {
+			"delete": {
+				"operationId": "revokeInviteCode",
+				"parameters": [
+					{
+						"name": "codeId",
+						"required": true,
+						"in": "path",
+						"schema": {
+							"format": "uuid",
+							"pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": { "description": "" },
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Revoke an invite code",
+				"tags": ["Members & settings"]
+			}
+		},
+		"/app-version": {
+			"put": {
+				"operationId": "setAppVersion",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertAppVersionDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/UpsertAppVersionDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Requires admin (can_manage_members)."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Set the tenant's app-version policy",
+				"tags": ["Members & settings"]
+			}
+		},
+		"/payment-method-config": {
+			"get": {
+				"operationId": "list",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/PaymentMethodConfigDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Enabled payment means for this tenant (POS), with SumUp keys",
+				"tags": ["Payments"]
+			}
+		},
+		"/me/profile": {
+			"get": {
+				"operationId": "profile",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MeProfileDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Current user on this tenant: roles + permissions",
+				"tags": ["Me"]
+			}
+		},
+		"/me/sales": {
+			"get": {
+				"operationId": "mySales",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/SaleResponseDto"
+									}
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": {
+						"description": "Insufficient permission on this tenant."
+					}
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "The current vendeur's own sales (all statuses, newest first)",
+				"tags": ["Me"]
+			}
+		},
+		"/t/{tenantId}/media/products/{id}/image": {
+			"get": {
+				"operationId": "productImage",
+				"parameters": [
+					{
+						"name": "tenantId",
+						"required": true,
+						"in": "path",
+						"schema": { "format": "uuid", "type": "string" }
+					},
+					{
+						"name": "id",
+						"required": true,
+						"in": "path",
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": { "200": { "description": "" } },
+				"summary": "Get a product photo (public, cacheable)",
+				"tags": ["Media"]
+			}
+		},
+		"/platform/tenants": {
+			"post": {
+				"operationId": "create",
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateTenantDto"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TenantCreatedDto"
+								}
+							}
+						}
+					},
+					"401": { "description": "Missing or invalid token." },
+					"403": { "description": "Platform operator required." }
+				},
+				"security": [{ "bearer": [] }],
+				"summary": "Create a tenant (registry + first admin tuple)",
+				"tags": ["Platform · Onboarding"]
+			}
+		}
+	},
+	"info": {
+		"title": "nestjs-base",
+		"description": "abc",
+		"version": "0.0.1",
+		"contact": {}
+	},
+	"tags": [],
+	"servers": [],
+	"components": {
+		"securitySchemes": {
+			"bearer": {
+				"scheme": "bearer",
+				"bearerFormat": "JWT",
+				"type": "http"
+			}
+		},
+		"schemas": {
+			"JoinTenantDto": {
+				"type": "object",
+				"properties": {
+					"code": {
+						"type": "string",
+						"pattern": "^[0-9]{4,16}$",
+						"example": "48213907",
+						"description": "Invite code (digits)"
+					}
+				},
+				"required": ["code"]
+			},
+			"JoinResultDto": {
+				"type": "object",
+				"properties": {
+					"tenantId": { "type": "string", "format": "uuid" },
+					"role": {
+						"enum": ["admin", "manager", "vendeur", "member"],
+						"type": "string"
+					}
+				},
+				"required": ["tenantId", "role"]
+			},
+			"MeDto": {
+				"type": "object",
+				"properties": {
+					"sub": {
+						"type": "string",
+						"description": "Keycloak subject (user id)"
+					},
+					"operator": {
+						"type": "boolean",
+						"description": "Platform operator (can provision tenants via /platform)."
+					}
+				},
+				"required": ["sub", "operator"]
+			},
+			"MyTenantDto": {
+				"type": "object",
+				"properties": {
+					"tenantId": { "type": "string", "format": "uuid" },
+					"slug": { "type": "string" },
+					"name": { "type": "string" },
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": ["admin", "manager", "vendeur", "member"]
+						}
+					}
+				},
+				"required": ["tenantId", "slug", "name", "roles"]
+			},
+			"ProductResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"name": {
+						"type": "string",
+						"example": "Bière blonde 25cl"
+					},
+					"stockPolicy": {
+						"enum": ["tracked", "oversell", "untracked"],
+						"type": "string"
+					},
+					"active": { "type": "boolean" },
+					"externalPriceCents": {
+						"type": "number",
+						"nullable": true,
+						"example": 250,
+						"description": "External price in integer cents; null for a variant group."
+					},
+					"memberPriceCents": {
+						"type": "number",
+						"nullable": true,
+						"example": 200,
+						"description": "Member (adherent) price in integer cents; null for a group."
+					},
+					"hasVariants": {
+						"type": "boolean",
+						"description": "True when this product has variants (sold via a panel)."
+					},
+					"imageUrl": {
+						"type": "string",
+						"nullable": true,
+						"description": "Public URL of the product photo, or null when none."
+					},
+					"stockQty": {
+						"type": "number",
+						"nullable": true,
+						"example": 42,
+						"description": "Current stock; null when policy is `untracked`."
+					},
+					"createdAt": { "type": "string", "format": "date-time" }
+				},
+				"required": [
+					"id",
+					"name",
+					"stockPolicy",
+					"active",
+					"externalPriceCents",
+					"memberPriceCents",
+					"hasVariants",
+					"imageUrl",
+					"stockQty",
+					"createdAt"
+				]
+			},
+			"CreateProductDto": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"maxLength": 120,
+						"example": "Bière blonde 25cl"
+					},
+					"externalPriceCents": {
+						"type": "number",
+						"minimum": 0,
+						"example": 250,
+						"description": "External price in integer cents (D9). Required together with memberPriceCents for a sellable product; omit both to create a variant group (its variants carry the prices)."
+					},
+					"memberPriceCents": {
+						"type": "number",
+						"minimum": 0,
+						"example": 200,
+						"description": "Member (adherent) price in integer cents. Required together with externalPriceCents."
+					},
+					"stockPolicy": {
+						"enum": ["tracked", "oversell", "untracked"],
+						"type": "string",
+						"default": "tracked",
+						"description": "Stock policy (D25). Defaults to `tracked`."
+					},
+					"initialStock": {
+						"type": "number",
+						"minimum": 0,
+						"default": 0,
+						"description": "Initial stock (ignored when stock policy is `untracked`)."
+					}
+				},
+				"required": ["name"]
+			},
+			"UpdateProductDto": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "maxLength": 120 },
+					"externalPriceCents": {
+						"type": "number",
+						"minimum": 0,
+						"description": "External price in cents."
+					},
+					"memberPriceCents": {
+						"type": "number",
+						"minimum": 0,
+						"description": "Member (adherent) price in cents."
+					},
+					"stockPolicy": {
+						"enum": ["tracked", "oversell", "untracked"],
+						"type": "string"
+					},
+					"active": {
+						"type": "boolean",
+						"description": "Archive/unarchive the product."
+					}
+				}
+			},
+			"StockResponseDto": {
+				"type": "object",
+				"properties": {
+					"productId": { "type": "string", "format": "uuid" },
+					"qty": { "type": "number", "example": 100 }
+				},
+				"required": ["productId", "qty"]
+			},
+			"SetStockDto": {
+				"type": "object",
+				"properties": {
+					"qty": {
+						"type": "number",
+						"minimum": 0,
+						"example": 100,
+						"description": "Absolute stock qty"
+					}
+				},
+				"required": ["qty"]
+			},
+			"OptionResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"groupId": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"priceDeltaCents": { "type": "number" },
+					"position": { "type": "number" }
+				},
+				"required": [
+					"id",
+					"groupId",
+					"name",
+					"priceDeltaCents",
+					"position"
+				]
+			},
+			"OptionGroupResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"productId": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"minSelect": { "type": "number" },
+					"maxSelect": { "type": "number" },
+					"position": { "type": "number" },
+					"options": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/OptionResponseDto"
+						}
+					}
+				},
+				"required": [
+					"id",
+					"productId",
+					"name",
+					"minSelect",
+					"maxSelect",
+					"position",
+					"options"
+				]
+			},
+			"CreateOptionGroupDto": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"maxLength": 120,
+						"example": "Sauce"
+					},
+					"minSelect": {
+						"type": "number",
+						"minimum": 0,
+						"default": 0,
+						"description": "Minimum choices the buyer must select."
+					},
+					"maxSelect": {
+						"type": "number",
+						"minimum": 1,
+						"default": 1,
+						"description": "Maximum choices the buyer may select (≥ 1, ≥ minSelect)."
+					},
+					"position": { "type": "number", "minimum": 0, "default": 0 }
+				},
+				"required": ["name"]
+			},
+			"UpdateOptionGroupDto": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "maxLength": 120 },
+					"minSelect": { "type": "number", "minimum": 0 },
+					"maxSelect": { "type": "number", "minimum": 1 },
+					"position": { "type": "number", "minimum": 0 }
+				}
+			},
+			"CreateOptionDto": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"maxLength": 120,
+						"example": "Extra bacon"
+					},
+					"priceDeltaCents": {
+						"type": "number",
+						"minimum": 0,
+						"default": 0,
+						"description": "Surcharge added to the line, in integer cents."
+					},
+					"position": { "type": "number", "minimum": 0, "default": 0 }
+				},
+				"required": ["name"]
+			},
+			"UpdateOptionDto": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "maxLength": 120 },
+					"priceDeltaCents": { "type": "number", "minimum": 0 },
+					"position": { "type": "number", "minimum": 0 }
+				}
+			},
+			"GridResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"active": { "type": "boolean" },
+					"position": { "type": "number" }
+				},
+				"required": ["id", "name", "active", "position"]
+			},
+			"CreateGridDto": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"maxLength": 120,
+						"example": "Bar"
+					},
+					"position": { "type": "number", "minimum": 0, "default": 0 }
+				},
+				"required": ["name"]
+			},
+			"ReorderEntryDto": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "uuid",
+						"description": "Grid id, or product id for item reorder."
+					},
+					"position": { "type": "number", "minimum": 0, "example": 0 }
+				},
+				"required": ["id", "position"]
+			},
+			"ReorderDto": {
+				"type": "object",
+				"properties": {
+					"items": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ReorderEntryDto"
+						}
+					}
+				},
+				"required": ["items"]
+			},
+			"VariantViewDto": {
+				"type": "object",
+				"properties": {
+					"productId": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"externalPriceCents": { "type": "number" },
+					"memberPriceCents": { "type": "number", "nullable": true },
+					"stockQty": { "type": "number", "nullable": true },
+					"stockPolicy": {
+						"enum": ["tracked", "oversell", "untracked"],
+						"type": "string"
+					},
+					"imageUrl": { "type": "string", "nullable": true }
+				},
+				"required": [
+					"productId",
+					"name",
+					"externalPriceCents",
+					"memberPriceCents",
+					"stockQty",
+					"stockPolicy",
+					"imageUrl"
+				]
+			},
+			"GridItemOptionDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"priceDeltaCents": { "type": "number" }
+				},
+				"required": ["id", "name", "priceDeltaCents"]
+			},
+			"GridItemOptionGroupDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"minSelect": { "type": "number" },
+					"maxSelect": { "type": "number" },
+					"options": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/GridItemOptionDto"
+						}
+					}
+				},
+				"required": ["id", "name", "minSelect", "maxSelect", "options"]
+			},
+			"GridItemViewDto": {
+				"type": "object",
+				"properties": {
+					"productId": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"externalPriceCents": {
+						"type": "number",
+						"nullable": true,
+						"description": "External price for a leaf; null for a variant group."
+					},
+					"memberPriceCents": { "type": "number", "nullable": true },
+					"stockQty": { "type": "number", "nullable": true },
+					"stockPolicy": {
+						"enum": ["tracked", "oversell", "untracked"],
+						"type": "string"
+					},
+					"imageUrl": { "type": "string", "nullable": true },
+					"position": { "type": "number" },
+					"variantCount": {
+						"type": "number",
+						"description": "Number of variants; > 0 means the POS opens a panel."
+					},
+					"variants": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/VariantViewDto"
+						}
+					},
+					"optionGroups": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/GridItemOptionGroupDto"
+						}
+					}
+				},
+				"required": [
+					"productId",
+					"name",
+					"externalPriceCents",
+					"memberPriceCents",
+					"stockQty",
+					"stockPolicy",
+					"imageUrl",
+					"position",
+					"variantCount",
+					"variants",
+					"optionGroups"
+				]
+			},
+			"GridViewDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"active": { "type": "boolean" },
+					"position": { "type": "number" },
+					"items": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/GridItemViewDto"
+						}
+					}
+				},
+				"required": ["id", "name", "active", "position", "items"]
+			},
+			"UpdateGridDto": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "maxLength": 120 },
+					"active": { "type": "boolean" },
+					"position": { "type": "number", "minimum": 0 }
+				}
+			},
+			"AddGridItemDto": {
+				"type": "object",
+				"properties": {
+					"productId": { "type": "string", "format": "uuid" },
+					"position": { "type": "number", "minimum": 0, "default": 0 }
+				},
+				"required": ["productId"]
+			},
+			"CartItemDto": {
+				"type": "object",
+				"properties": {
+					"productId": {
+						"type": "string",
+						"format": "uuid",
+						"description": "Top-level product id (the group, or a leaf product)."
+					},
+					"variantId": {
+						"type": "string",
+						"format": "uuid",
+						"description": "Chosen variant; required when the product has variants."
+					},
+					"optionIds": {
+						"description": "Chosen option ids (from the product’s option groups).",
+						"type": "array",
+						"items": { "type": "string", "format": "uuid" }
+					},
+					"qty": { "type": "number", "minimum": 1, "example": 2 }
+				},
+				"required": ["productId", "qty"]
+			},
+			"CreateOrderDto": {
+				"type": "object",
+				"properties": {
+					"items": {
+						"minItems": 1,
+						"type": "array",
+						"items": { "$ref": "#/components/schemas/CartItemDto" }
+					},
+					"paymentMean": {
+						"enum": ["CASH", "TAP_TO_PAY", "CARD_READER"],
+						"type": "string"
+					},
+					"memberId": {
+						"type": "string",
+						"format": "uuid",
+						"description": "Adherent to attribute the sale to (member pricing)."
+					},
+					"idempotencyKey": {
+						"type": "string",
+						"maxLength": 80,
+						"description": "Client-generated idempotency key (recommended for cash; a refused card order should be retried under a NEW key)."
+					}
+				},
+				"required": ["items", "paymentMean"]
+			},
+			"SaleItemResponseDto": {
+				"type": "object",
+				"properties": {
+					"productId": { "type": "string", "format": "uuid" },
+					"qty": { "type": "number" },
+					"unitPriceCents": { "type": "number" }
+				},
+				"required": ["productId", "qty", "unitPriceCents"]
+			},
+			"SaleResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"totalCents": { "type": "number" },
+					"paymentMethod": {
+						"enum": ["cash", "card"],
+						"type": "string"
+					},
+					"paymentMean": {
+						"nullable": true,
+						"enum": ["CASH", "TAP_TO_PAY", "CARD_READER"],
+						"type": "string"
+					},
+					"status": {
+						"enum": ["pending", "completed", "cancelled"],
+						"type": "string"
+					},
+					"items": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/SaleItemResponseDto"
+						}
+					},
+					"expiresAt": {
+						"type": "string",
+						"nullable": true,
+						"format": "date-time",
+						"description": "When a pending card order expires; null otherwise."
+					},
+					"createdAt": { "type": "string", "format": "date-time" }
+				},
+				"required": [
+					"id",
+					"totalCents",
+					"paymentMethod",
+					"paymentMean",
+					"status",
+					"items",
+					"expiresAt",
+					"createdAt"
+				]
+			},
+			"ConfirmOrderDto": {
+				"type": "object",
+				"properties": {
+					"sumupTxId": {
+						"type": "string",
+						"maxLength": 120,
+						"description": "SumUp transaction id from the device SDK (TransactionDone)."
+					}
+				},
+				"required": ["sumupTxId"]
+			},
+			"RefundSaleDto": {
+				"type": "object",
+				"properties": {
+					"reason": { "type": "string", "maxLength": 280 }
+				}
+			},
+			"SaleListRowDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"createdAt": { "type": "string", "format": "date-time" },
+					"totalCents": { "type": "number" },
+					"paymentMethod": {
+						"enum": ["cash", "card"],
+						"type": "string"
+					},
+					"status": {
+						"enum": ["pending", "completed", "cancelled"],
+						"type": "string"
+					},
+					"actor": {
+						"type": "string",
+						"description": "actorUsername, or actorUserId as a fallback"
+					},
+					"itemCount": {
+						"type": "number",
+						"description": "Number of line items"
+					}
+				},
+				"required": [
+					"id",
+					"createdAt",
+					"totalCents",
+					"paymentMethod",
+					"status",
+					"actor",
+					"itemCount"
+				]
+			},
+			"PaginatedSalesDto": {
+				"type": "object",
+				"properties": {
+					"rows": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/SaleListRowDto"
+						}
+					},
+					"total": {
+						"type": "number",
+						"description": "Total rows matching the filter"
+					},
+					"page": { "type": "number" },
+					"pageSize": { "type": "number" }
+				},
+				"required": ["rows", "total", "page", "pageSize"]
+			},
+			"RevenueByMethodDto": {
+				"type": "object",
+				"properties": {
+					"cash": { "type": "number" },
+					"card": { "type": "number" }
+				},
+				"required": ["cash", "card"]
+			},
+			"RevenueResponseDto": {
+				"type": "object",
+				"properties": {
+					"totalCents": {
+						"type": "number",
+						"description": "Gross revenue of completed sales, in cents"
+					},
+					"salesCount": { "type": "number" },
+					"byMethod": {
+						"$ref": "#/components/schemas/RevenueByMethodDto"
+					},
+					"refundedCents": {
+						"type": "number",
+						"description": "Total refunded over the period, in cents"
+					}
+				},
+				"required": [
+					"totalCents",
+					"salesCount",
+					"byMethod",
+					"refundedCents"
+				]
+			},
+			"ProductSalesRowDto": {
+				"type": "object",
+				"properties": {
+					"productId": { "type": "string", "format": "uuid" },
+					"name": { "type": "string" },
+					"unitsSold": {
+						"type": "number",
+						"description": "Units sold over the period"
+					},
+					"revenueCents": {
+						"type": "number",
+						"description": "Revenue in cents (Σ qty × unit_price_cents)"
+					},
+					"salesCount": {
+						"type": "number",
+						"description": "Distinct sales including this product"
+					}
+				},
+				"required": [
+					"productId",
+					"name",
+					"unitsSold",
+					"revenueCents",
+					"salesCount"
+				]
+			},
+			"RevenueBucketDto": {
+				"type": "object",
+				"properties": {
+					"date": {
+						"type": "string",
+						"description": "Bucket day, YYYY-MM-DD (UTC)"
+					},
+					"totalCents": { "type": "number" },
+					"salesCount": { "type": "number" },
+					"cashCents": { "type": "number" },
+					"cardCents": { "type": "number" }
+				},
+				"required": [
+					"date",
+					"totalCents",
+					"salesCount",
+					"cashCents",
+					"cardCents"
+				]
+			},
+			"AdherentSearchResultDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"lastName": { "type": "string" },
+					"firstName": { "type": "string" },
+					"email": { "type": "string" },
+					"isMember": { "type": "boolean" }
+				},
+				"required": ["id", "lastName", "firstName", "email", "isMember"]
+			},
+			"MembershipResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"personId": { "type": "string", "format": "uuid" },
+					"academicYearId": { "type": "string", "format": "uuid" },
+					"status": {
+						"enum": ["active", "expired"],
+						"type": "string"
+					},
+					"createdAt": { "type": "string", "format": "date-time" }
+				},
+				"required": [
+					"id",
+					"personId",
+					"academicYearId",
+					"status",
+					"createdAt"
+				]
+			},
+			"PersonResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"lastName": { "type": "string" },
+					"firstName": { "type": "string" },
+					"email": { "type": "string" },
+					"birthDate": {
+						"type": "string",
+						"nullable": true,
+						"format": "date"
+					},
+					"isMember": {
+						"type": "boolean",
+						"description": "True when the person has an active membership in the current year."
+					},
+					"memberships": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/MembershipResponseDto"
+						}
+					}
+				},
+				"required": [
+					"id",
+					"lastName",
+					"firstName",
+					"email",
+					"birthDate",
+					"isMember",
+					"memberships"
+				]
+			},
+			"CreatePersonDto": {
+				"type": "object",
+				"properties": {
+					"lastName": {
+						"type": "string",
+						"maxLength": 120,
+						"example": "Dupont"
+					},
+					"firstName": {
+						"type": "string",
+						"maxLength": 120,
+						"example": "Marie"
+					},
+					"email": {
+						"type": "string",
+						"maxLength": 200,
+						"format": "email",
+						"example": "marie.dupont@school.fr"
+					},
+					"birthDate": {
+						"type": "string",
+						"format": "date",
+						"example": "2004-05-12"
+					}
+				},
+				"required": ["lastName", "firstName", "email"]
+			},
+			"UpdatePersonDto": {
+				"type": "object",
+				"properties": {
+					"lastName": { "type": "string", "maxLength": 120 },
+					"firstName": { "type": "string", "maxLength": 120 },
+					"email": {
+						"type": "string",
+						"maxLength": 200,
+						"format": "email"
+					},
+					"birthDate": { "type": "string", "format": "date" }
+				}
+			},
+			"CreateMembershipDto": {
+				"type": "object",
+				"properties": {
+					"academicYearId": { "type": "string", "format": "uuid" },
+					"status": {
+						"enum": ["active", "expired"],
+						"type": "string",
+						"default": "active"
+					}
+				},
+				"required": ["academicYearId"]
+			},
+			"AcademicYearResponseDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"label": { "type": "string" },
+					"startsOn": { "type": "string", "format": "date" },
+					"endsOn": { "type": "string", "format": "date" },
+					"isCurrent": { "type": "boolean" }
+				},
+				"required": ["id", "label", "startsOn", "endsOn", "isCurrent"]
+			},
+			"CreateAcademicYearDto": {
+				"type": "object",
+				"properties": {
+					"label": {
+						"type": "string",
+						"maxLength": 40,
+						"example": "2025-2026"
+					},
+					"startsOn": {
+						"type": "string",
+						"format": "date",
+						"example": "2025-09-01"
+					},
+					"endsOn": {
+						"type": "string",
+						"format": "date",
+						"example": "2026-08-31"
+					},
+					"isCurrent": {
+						"type": "boolean",
+						"default": false,
+						"description": "Mark this year current (unsets any other current year)."
+					}
+				},
+				"required": ["label", "startsOn", "endsOn"]
+			},
+			"UpdateAcademicYearDto": {
+				"type": "object",
+				"properties": {
+					"label": { "type": "string", "maxLength": 40 },
+					"startsOn": { "type": "string", "format": "date" },
+					"endsOn": { "type": "string", "format": "date" },
+					"isCurrent": { "type": "boolean" }
+				}
+			},
+			"MemberRolesResponseDto": {
+				"type": "object",
+				"properties": {
+					"userSub": { "type": "string" },
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": ["admin", "manager", "vendeur", "member"]
+						}
+					}
+				},
+				"required": ["userSub", "roles"]
+			},
+			"CreateInviteCodeDto": {
+				"type": "object",
+				"properties": {
+					"role": {
+						"enum": ["admin", "manager", "vendeur", "member"],
+						"type": "string",
+						"description": "Role granted on join"
+					},
+					"maxUses": {
+						"type": "number",
+						"minimum": 1,
+						"maximum": 1000,
+						"default": 1,
+						"description": "Max redemptions"
+					},
+					"expiresInMinutes": {
+						"type": "number",
+						"minimum": 1,
+						"maximum": 43200,
+						"default": 1440,
+						"description": "TTL in minutes"
+					}
+				},
+				"required": ["role"]
+			},
+			"InviteCodeCreatedDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"code": {
+						"type": "string",
+						"description": "Raw code — shown only once"
+					},
+					"roleOnJoin": {
+						"enum": ["admin", "manager", "vendeur", "member"],
+						"type": "string"
+					},
+					"maxUses": { "type": "number" },
+					"expiresAt": { "type": "string", "format": "date-time" }
+				},
+				"required": ["id", "code", "roleOnJoin", "maxUses", "expiresAt"]
+			},
+			"InviteCodeDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"roleOnJoin": {
+						"enum": ["admin", "manager", "vendeur", "member"],
+						"type": "string"
+					},
+					"maxUses": { "type": "number" },
+					"usedCount": { "type": "number" },
+					"revoked": { "type": "boolean" },
+					"expiresAt": { "type": "string", "format": "date-time" }
+				},
+				"required": [
+					"id",
+					"roleOnJoin",
+					"maxUses",
+					"usedCount",
+					"revoked",
+					"expiresAt"
+				]
+			},
+			"UpsertAppVersionDto": {
+				"type": "object",
+				"properties": {
+					"appId": {
+						"enum": ["vente", "adherent"],
+						"type": "string"
+					},
+					"platform": {
+						"enum": ["ios", "android"],
+						"type": "string"
+					},
+					"minSupported": {
+						"type": "number",
+						"minimum": 1,
+						"example": 426
+					},
+					"latest": { "type": "number", "minimum": 1, "example": 512 }
+				},
+				"required": ["appId", "platform", "minSupported", "latest"]
+			},
+			"PaymentMethodConfigDto": {
+				"type": "object",
+				"properties": {
+					"paymentMean": {
+						"enum": ["CASH", "TAP_TO_PAY", "CARD_READER"],
+						"type": "string"
+					},
+					"provider": {
+						"enum": ["INTERNAL", "SUMUP", "STRIPE", "HELLOASSO"],
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean",
+						"description": "Whether this rail is usable at the POS."
+					},
+					"apiKey": {
+						"type": "string",
+						"nullable": true,
+						"description": "SumUp SDK key for the device; null for rails without one."
+					}
+				},
+				"required": ["paymentMean", "provider", "enabled", "apiKey"]
+			},
+			"MePermissionsDto": {
+				"type": "object",
+				"properties": {
+					"canSell": { "type": "boolean" },
+					"canAccessBackoffice": { "type": "boolean" },
+					"canManageCatalog": { "type": "boolean" },
+					"canManageAdherents": { "type": "boolean" },
+					"canViewReports": { "type": "boolean" },
+					"canCancelSale": { "type": "boolean" },
+					"canManageMembers": { "type": "boolean" }
+				},
+				"required": [
+					"canSell",
+					"canAccessBackoffice",
+					"canManageCatalog",
+					"canManageAdherents",
+					"canViewReports",
+					"canCancelSale",
+					"canManageMembers"
+				]
+			},
+			"MeProfileDto": {
+				"type": "object",
+				"properties": {
+					"sub": {
+						"type": "string",
+						"description": "Keycloak subject (global user id)."
+					},
+					"username": { "type": "string", "nullable": true },
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": ["admin", "manager", "vendeur", "member"]
+						}
+					},
+					"permissions": {
+						"$ref": "#/components/schemas/MePermissionsDto"
+					}
+				},
+				"required": ["sub", "username", "roles", "permissions"]
+			},
+			"CreateTenantDto": {
+				"type": "object",
+				"properties": {
+					"slug": {
+						"type": "string",
+						"maxLength": 63,
+						"pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
+						"example": "aee"
+					},
+					"name": {
+						"type": "string",
+						"maxLength": 160,
+						"example": "AEE — Association des Élèves de l’ENSSAT"
+					},
+					"firstAdminSub": {
+						"type": "string",
+						"maxLength": 255,
+						"description": "Keycloak sub of the first admin (granted the admin tuple)."
+					}
+				},
+				"required": ["slug", "name"]
+			},
+			"TenantCreatedDto": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string", "format": "uuid" },
+					"slug": { "type": "string" },
+					"name": { "type": "string" }
+				},
+				"required": ["id", "slug", "name"]
+			}
+		}
+	}
+}

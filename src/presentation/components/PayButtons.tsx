@@ -20,6 +20,10 @@ const TAP_TO_PAY_LABEL =
 	Platform.OS === 'ios' ? 'Tap to Pay sur iPhone' : 'Tap to Pay sur Android';
 
 interface Props {
+	/** The rails this tenant has enabled (`GET /payment-method-config`) — only these are
+	 *  offered. Defaults to all of them while the config is loading, so a slow or failed
+	 *  fetch never leaves the merchant with no way to take money. */
+	enabledMethods: CheckoutMethod[];
 	/** Which method is being charged (null when idle) — only that button spins, so the others
 	 *  never look disabled (Apple Tap to Pay req 5.3). */
 	pendingMethod: CheckoutMethod | null;
@@ -43,6 +47,7 @@ interface Props {
  * empty basket (Apple req 5.3), and the sheet is only reachable from a non-empty basket anyway.
  */
 export function PayButtons({
+	enabledMethods,
 	pendingMethod,
 	error,
 	onDismissError,
@@ -73,58 +78,70 @@ export function PayButtons({
 		<View style={styles.container}>
 			<PaymentErrorBanner message={banner} onDismiss={dismissBanner} />
 			<View style={styles.methods}>
-				<PrimaryButton
-					label={TAP_TO_PAY_LABEL}
-					variant="primary"
-					loading={pendingMethod === 'tapToPay'}
-					onPress={() => onPayCard('tapToPay')}
-					icon={<TapToPayIcon color="#ffffff" size={22} />}
-				/>
-				<PrimaryButton
-					label="Terminal de paiement"
-					variant="secondary"
-					loading={pendingMethod === 'bluetoothCardReader'}
-					onPress={() => onPayCard('bluetoothCardReader')}
-					icon={
-						<Ionicons
-							name="bluetooth-outline"
-							size={20}
-							color="#ffffff"
-						/>
-					}
-				/>
-				<PrimaryButton
-					label="Espèces"
-					variant="success"
-					disabled={busy}
-					onPress={onSelectCash}
-					icon={
-						<Ionicons
-							name="cash-outline"
-							size={20}
-							color="#ffffff"
-						/>
-					}
-				/>
+				{enabledMethods.includes('tapToPay') && (
+					<PrimaryButton
+						label={TAP_TO_PAY_LABEL}
+						variant="primary"
+						loading={pendingMethod === 'tapToPay'}
+						onPress={() => onPayCard('tapToPay')}
+						icon={<TapToPayIcon color="#ffffff" size={22} />}
+					/>
+				)}
+				{enabledMethods.includes('bluetoothCardReader') && (
+					<PrimaryButton
+						label="Terminal de paiement"
+						variant="secondary"
+						loading={pendingMethod === 'bluetoothCardReader'}
+						onPress={() => onPayCard('bluetoothCardReader')}
+						icon={
+							<Ionicons
+								name="bluetooth-outline"
+								size={20}
+								color="#ffffff"
+							/>
+						}
+					/>
+				)}
+				{enabledMethods.includes('cash') && (
+					<PrimaryButton
+						label="Espèces"
+						variant="success"
+						disabled={busy}
+						onPress={onSelectCash}
+						icon={
+							<Ionicons
+								name="cash-outline"
+								size={20}
+								color="#ffffff"
+							/>
+						}
+					/>
+				)}
 			</View>
 			{/* Not a payment method — a utility. Kept as a small, understated link so it never
-			    reads as a fourth way to pay. */}
-			<Pressable
-				onPress={openSettings}
-				disabled={busy}
-				style={({ pressed }) => [
-					styles.settingsLink,
-					pressed && styles.settingsLinkPressed,
-					busy && styles.settingsLinkDisabled,
-				]}
-				accessibilityRole="button"
-				accessibilityLabel="Réglages du terminal de paiement"
-			>
-				<Ionicons name="settings-outline" size={16} color="#767676" />
-				<Text style={styles.settingsLinkLabel}>
-					Réglages du terminal de paiement
-				</Text>
-			</Pressable>
+			    reads as a fourth way to pay, and hidden when the reader isn't on offer at all. */}
+			{enabledMethods.includes('bluetoothCardReader') && (
+				<Pressable
+					onPress={openSettings}
+					disabled={busy}
+					style={({ pressed }) => [
+						styles.settingsLink,
+						pressed && styles.settingsLinkPressed,
+						busy && styles.settingsLinkDisabled,
+					]}
+					accessibilityRole="button"
+					accessibilityLabel="Réglages du terminal de paiement"
+				>
+					<Ionicons
+						name="settings-outline"
+						size={16}
+						color="#767676"
+					/>
+					<Text style={styles.settingsLinkLabel}>
+						Réglages du terminal de paiement
+					</Text>
+				</Pressable>
+			)}
 		</View>
 	);
 }

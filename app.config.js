@@ -6,6 +6,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+// package.json is the single source of truth for the app's name + version: it feeds
+// `expo.version` below and the API client's User-Agent (via `extra`). Read here rather
+// than imported at runtime, so the manifest doesn't ship in the JS bundle.
+const pkg = require('./package.json');
+
 // --- App variant -----------------------------------------------------------
 // A separate `.dev` identity lets the test build (develop → Firebase) sit on a
 // device ALONGSIDE the production build (main → stores) with no install conflict.
@@ -26,7 +31,7 @@ module.exports = () => ({
 	expo: {
 		name: APP_NAME,
 		slug: 'aee-vente',
-		version: '1.0.0',
+		version: pkg.version,
 		orientation: 'portrait',
 		icon: ICON,
 		scheme: 'aeevente',
@@ -44,6 +49,11 @@ module.exports = () => ({
 				'com.apple.developer.proximity-reader.payment.acceptance': true,
 			},
 			infoPlist: {
+				// The SSO consent alert (ASWebAuthenticationSession) shows
+				// CFBundleName, NOT CFBundleDisplayName — and prebuild otherwise
+				// leaves it as $(PRODUCT_NAME), i.e. the space-stripped Xcode
+				// target name ("AEEVente"). Set it so the alert reads "AEE Vente".
+				CFBundleName: APP_NAME,
 				NSBluetoothAlwaysUsageDescription:
 					'AEE Vente uses Bluetooth to connect to the card reader.',
 				NSLocationWhenInUseUsageDescription:
@@ -80,6 +90,9 @@ module.exports = () => ({
 		},
 		plugins: [
 			'expo-router',
+			// Required by expo-auth-session: hosts the Keycloak SSO round-trip in an
+			// ASWebAuthenticationSession / Custom Tab.
+			'expo-web-browser',
 			[
 				'expo-splash-screen',
 				{
@@ -128,8 +141,21 @@ module.exports = () => ({
 		// NOTE: `extra` is bundled into the app — fine for a demo; for production
 		// fetch the access token from your backend instead of shipping it.
 		extra: {
+			// Identity for the API client's User-Agent — `aee-vente/1.0.0`. Surfaced
+			// here so the runtime never has to import package.json.
+			appName: pkg.name,
+			appVersion: pkg.version,
+			// Affiliate key only — the SumUp *access token* is the tenant's own and is
+			// fetched from the API at runtime, never bundled. See constants/sumup.ts.
 			sumupAffiliateKey: process.env.SUMUP_AFFILIATE_KEY ?? '',
-			sumupAccessToken: process.env.SUMUP_ACCESS_TOKEN ?? '',
+			// AEE Manager API + the Keycloak realm that issues its bearer tokens.
+			// Not secrets (the client id is public), so shipping them in `extra` is fine.
+			apiBaseUrl:
+				process.env.API_BASE_URL,
+			keycloakUrl:
+				process.env.KEYCLOAK_URL,
+			keycloakRealm: process.env.KEYCLOAK_REALM,
+			keycloakClientId: process.env.KEYCLOAK_CLIENT_ID,
 		},
 	},
 });

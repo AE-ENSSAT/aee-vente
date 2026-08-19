@@ -1,10 +1,12 @@
 import type { SellGridRepository } from '@/src/domain/SellGridRepository';
-import { DummySellGridRepository } from './DummySellGridRepository';
+import { ApiSellGridRepository } from './ApiSellGridRepository';
 
 /**
  * Composition root for data access — the one place that binds domain interfaces to
- * concrete implementations. When the API lands, change `new DummySellGridRepository()`
- * to the API-backed class here; the rest of the app is untouched.
+ * concrete implementations.
+ *
+ * Grids now come from the AEE Manager API. `DummySellGridRepository` is still in the tree:
+ * bind it here instead to run the sell screen with no backend (offline demo, UI work).
  */
 export const sellGridRepository: SellGridRepository =
-	new DummySellGridRepository();
+	new ApiSellGridRepository();
