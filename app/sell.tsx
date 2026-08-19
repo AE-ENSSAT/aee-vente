@@ -23,7 +23,11 @@ import { PaymentSuccessOverlay } from '@/src/presentation/components/PaymentSucc
 import { ProductDetailSheet } from '@/src/presentation/components/ProductDetailSheet';
 import { ReceiptPrompt } from '@/src/presentation/components/ReceiptPrompt';
 import { SellGrid } from '@/src/presentation/components/SellGrid';
-import { hapticLongPress, hapticSuccess } from '@/src/presentation/haptics';
+import {
+	hapticLongPress,
+	hapticRefresh,
+	hapticSuccess,
+} from '@/src/presentation/haptics';
 import { useSellGrids } from '@/src/presentation/sell/useSellGrids';
 import { APP_MARGIN, FAB_GAP, FAB_SIZE, FONT } from '@/src/presentation/theme';
 import { useBottomSpace } from '@/src/presentation/useBottomSpace';
@@ -34,28 +38,20 @@ export default function SellScreen() {
 	const { addProduct, itemCount, clear } = useBasket();
 	const { width } = useWindowDimensions();
 	const router = useRouter();
-	// Reserve enough scroll room for the last product row to clear the floating basket
-	// button (which sits `fabBottom` above the system bar and is `FAB_SIZE` tall).
+	// Enough scroll room for the last row to clear the floating basket button.
 	const gridBottomInset = useBottomSpace(FAB_GAP) + FAB_SIZE;
 	const pagerRef = useRef<ScrollView>(null);
 	const [selectedId, setSelectedId] = useState<string>('');
 	const [basketOpen, setBasketOpen] = useState(false);
-	// The payment page (method choice) — slides up over the basket when the merchant taps
-	// "Paiement", and closes behind the success flourish just like the basket does.
 	const [paymentOpen, setPaymentOpen] = useState(false);
-	// While true, the success flourish covers the whole app (in a window-level layer above the
-	// basket sheet), while the basket empties and the sheet closes behind it, unseen.
+	// While true the flourish covers the app, and the basket empties behind it, unseen.
 	const [celebrating, setCelebrating] = useState(false);
-	// The just-paid sale's id, kept so the receipt prompt (shown once the flourish fades) can
-	// open its detail. Set the instant payment succeeds; cleared when the prompt is dismissed.
+	// Kept so the receipt prompt, raised once the flourish fades, can open its detail.
 	const [receiptTxId, setReceiptTxId] = useState<string | null>(null);
-	// Whether the "Voulez-vous un reçu ?" bottom prompt is up (only after the flourish fades).
 	const [showReceiptPrompt, setShowReceiptPrompt] = useState(false);
-	// The product whose detail sheet is open (long-press a tile), or null when closed.
 	const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
-	// Tap a tile: a product with variants opens its detail sheet (pick variants there);
-	// a plain product is added straight to the basket. No haptic on a simple tap.
+	// A product with variants opens its detail sheet; a plain one goes straight in.
 	const tapProduct = useCallback(
 		(product: Product) => {
 			if (product.variants?.length) {
@@ -67,16 +63,20 @@ export default function SellScreen() {
 		[addProduct],
 	);
 
-	// Long-press a tile: buzz, then open its detail sheet (works for any product).
 	const openDetail = useCallback((product: Product) => {
 		hapticLongPress();
 		setDetailProduct(product);
 	}, []);
 
-	// Payment succeeded — the instant SumUp returns accepted. Pop the flourish on top of
-	// everything (with the haptic); then, deferred a frame so the overlay is up first, empty
-	// the basket and close the sheet behind it. The overlay is an independent window-level
-	// layer, so the sheet's close is never seen. The sale's id is kept for the receipt prompt.
+	// Buzz the moment the pull fires: on Android the grid doesn't move, so the spinner is
+	// the only sign anything happened.
+	const reloadGrids = useCallback(() => {
+		hapticRefresh();
+		refresh();
+	}, [refresh]);
+
+	// Pop the flourish first, then — deferred a frame, so the overlay is already up — empty
+	// the basket and close the sheet behind it, unseen.
 	const handlePaid = useCallback(
 		(transactionId: string | null) => {
 			hapticSuccess();
@@ -92,14 +92,13 @@ export default function SellScreen() {
 		[clear],
 	);
 
-	// The closing fade has finished onto the cleared, sheet-less screen — retire the flourish
-	// and raise the receipt prompt (it renders only once a sale id is present).
+	// The fade has finished onto the cleared screen: retire the flourish, raise the prompt.
 	const handleHidden = useCallback(() => {
 		setCelebrating(false);
 		setShowReceiptPrompt(true);
 	}, []);
 
-	// "Oui" — open the just-paid sale's detail as a receipt (an X there returns to the grid).
+	// "Oui" — open the sale's detail as a receipt.
 	const acceptReceipt = useCallback(() => {
 		setShowReceiptPrompt(false);
 		if (receiptTxId) {
@@ -110,7 +109,7 @@ export default function SellScreen() {
 		}
 	}, [receiptTxId, router]);
 
-	// "Non", or the 3s countdown elapsed — dismiss the prompt and drop the kept id.
+	// "Non", or the countdown elapsed.
 	const dismissReceipt = useCallback(() => {
 		setShowReceiptPrompt(false);
 		setReceiptTxId(null);
@@ -121,14 +120,13 @@ export default function SellScreen() {
 		[grids],
 	);
 
-	// Default the selection to the first grid once loaded (no synthetic "Tout" tab).
+	// Default to the first grid once loaded.
 	useEffect(() => {
 		if (grids.length && !grids.some((g) => g.id === selectedId)) {
 			setSelectedId(grids[0].id);
 		}
 	}, [grids, selectedId]);
 
-	// Tap a pill: select it and page the grid across to it.
 	const selectTab = useCallback(
 		(id: string) => {
 			setSelectedId(id);
@@ -143,7 +141,6 @@ export default function SellScreen() {
 		[grids, width],
 	);
 
-	// Swiping the grid between pages updates the selection.
 	const onPagerScrollEnd = useCallback(
 		(e: NativeSyntheticEvent<NativeScrollEvent>) => {
 			const index = Math.round(e.nativeEvent.contentOffset.x / width);
@@ -211,7 +208,7 @@ export default function SellScreen() {
 									onLongPressProduct={openDetail}
 									bottomInset={gridBottomInset}
 									refreshing={refreshing}
-									onRefresh={refresh}
+									onRefresh={reloadGrids}
 								/>
 							</View>
 						))}
@@ -267,7 +264,6 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'space-between',
 		paddingHorizontal: APP_MARGIN,
-		// Same margin above and below as the gaps below (carousel ↔ grid, grid bottom).
 		paddingTop: APP_MARGIN,
 		paddingBottom: APP_MARGIN,
 	},

@@ -7,12 +7,8 @@ import {
 } from '@/src/api';
 
 /**
- * Who the signed-in user is, and where they can sell.
- *
- * A thin, intention-revealing wrapper over the generated client: it unwraps axios'
- * `{ data }` and gives the calls names the app speaks in. No interface + implementation
- * pair here — the typed client *is* the abstraction, and a second one would only add
- * indirection.
+ * Who the signed-in user is, and where they can sell. A thin wrapper over the generated
+ * client: the typed client *is* the abstraction, so there is no interface/impl pair here.
  */
 export const accountService = {
 	/** Identity + whether the user may provision tenants (platform operator). */
@@ -21,19 +17,13 @@ export const accountService = {
 		return data;
 	},
 
-	/**
-	 * The tenants this user belongs to, with their roles in each. Drives tenant
-	 * selection: the chosen `tenantId` becomes the `X-Tenant-Id` of every later call.
-	 */
+	/** The chosen `tenantId` becomes the `X-Tenant-Id` of every later call. */
 	async myTenants(): Promise<MyTenantDto[]> {
 		const { data } = await api.myTenants();
 		return data;
 	},
 
-	/**
-	 * Roles and resolved permissions **on the currently selected tenant** — notably
-	 * `permissions.canSell`, which gates the sell screen.
-	 */
+	/** Roles and permissions **on the selected tenant** — `canSell` gates the sell screen. */
 	async profile(): Promise<MeProfileDto> {
 		const { data } = await api.profile();
 		return data;

@@ -1,11 +1,8 @@
 import Constants from 'expo-constants';
 
 /**
- * AEE Manager API + Keycloak coordinates, surfaced from `app.config.js` `extra`
- * (sourced from .env) — the same pattern as {@link constants/sumup.ts}.
- *
- * The API itself has no login endpoint: it only validates Keycloak-issued JWTs, so the
- * app needs both the API base URL and the realm that signs the tokens.
+ * API + Keycloak coordinates, from `app.config.js` `extra`. The API has no login endpoint
+ * of its own — it only validates the realm's JWTs — so both are needed.
  */
 const extra = (Constants.expoConfig?.extra ?? {}) as {
 	apiBaseUrl?: string;
@@ -17,13 +14,10 @@ const extra = (Constants.expoConfig?.extra ?? {}) as {
 /** Strip a trailing slash so `${BASE}/path` never doubles up. */
 const trimSlash = (url: string): string => url.replace(/\/+$/, '');
 
-/** Base URL of the AEE Manager API, e.g. `https://api.aee-manager.bde-enssat.fr`. */
 export const API_BASE_URL = trimSlash(extra.apiBaseUrl ?? '');
 
-/** Keycloak server root, e.g. `https://auth.aee-manager.bde-enssat.fr`. */
 export const KEYCLOAK_URL = trimSlash(extra.keycloakUrl ?? '');
 
-/** Keycloak realm holding the app's users. */
 export const KEYCLOAK_REALM = extra.keycloakRealm ?? '';
 
 /** Public Keycloak client the app authenticates as. */

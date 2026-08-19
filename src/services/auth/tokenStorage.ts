@@ -1,16 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
 
 /**
- * Persistence for the pieces of a session that must survive an app restart.
+ * What must survive an app restart. Only the **refresh token** is stored, never the access
+ * token: those live minutes, so persisting them buys nothing and only widens the window in
+ * which a copy on disk is useful. Start-up exchanges the refresh token for a fresh one.
  *
- * Only the **refresh token** is stored, never the access token: access tokens live a few
- * minutes, so persisting them buys nothing and widens the window in which a copy on disk
- * is useful to an attacker. On start-up the refresh token is exchanged for a fresh access
- * token instead (see `KeycloakAuthService.restore`), which also keeps every stored value
- * comfortably under SecureStore's Android size warning.
- *
- * The selected tenant rides along here too — it isn't a secret, but it is part of "who is
- * signed in and where", so it is cleared by the same sign-out.
+ * The selected tenant rides along — not a secret, but part of "who is signed in and where",
+ * so the same sign-out clears it.
  */
 const REFRESH_TOKEN_KEY = 'aee.auth.refreshToken';
 const TENANT_ID_KEY = 'aee.auth.tenantId';

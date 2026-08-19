@@ -13,21 +13,18 @@ import { useAuth } from '@/src/presentation/auth/AuthContext';
 import { FONT } from '@/src/presentation/theme';
 
 /**
- * Login screen. There are no credential fields: the seller is sent to Keycloak's own
- * sign-in page in a system browser session (SSO, authorization code + PKCE), so the app
- * never handles a password. The AEE Manager API has no login endpoint of its own — it only
- * validates the tokens that round-trip produces.
+ * Login screen — no credential fields: the seller goes to Keycloak's own page in a system
+ * browser session (SSO + PKCE), so the app never handles a password.
  *
- * On success the seller lands on the association picker; only a session restored at
- * start-up goes straight to the sell page. (The SumUp session is established separately
- * by SumUpProvider.)
+ * On success they land on the association picker; only a restored session goes straight to
+ * the sell page.
  */
 export default function LoginScreen() {
 	const router = useRouter();
 	const { status, needsTenantChoice, signIn } = useAuth();
 	const [busy, setBusy] = useState(false);
 
-	// A session restored at start-up (or just established) skips straight past this screen.
+	// A restored (or just established) session skips this screen.
 	useEffect(() => {
 		if (status === 'signedIn') {
 			router.replace(needsTenantChoice ? '/tenant' : '/sell');
@@ -42,16 +39,12 @@ export default function LoginScreen() {
 		try {
 			const signedIn = await signIn();
 			if (signedIn) {
-				// Start each session with a clean local history. Doing this on login (rather
-				// than on sign-out) is more reliable — it also covers a previous session that
-				// ended in a crash or force-quit without a proper sign-out.
+				// On login rather than sign-out: that also covers a session that ended in a crash.
 				await transactionStore.clear();
-				// Navigation is handled by the effect above, once the session lands.
 			}
 		} catch {
-			// Sign-in problems are shown by Keycloak on its own page, and dismissing it is
-			// a deliberate choice rather than a failure — so there is nothing to report
-			// back here. Falling through just leaves the button ready for another try.
+			// Keycloak reports sign-in problems on its own page, and dismissing it is a choice,
+			// not a failure — so there is nothing to surface here.
 		} finally {
 			setBusy(false);
 		}
@@ -81,9 +74,7 @@ export default function LoginScreen() {
 					{busy ? (
 						<ActivityIndicator color="#ffffff" />
 					) : (
-						<Text style={styles.buttonText}>
-							Se connecter
-						</Text>
+						<Text style={styles.buttonText}>Se connecter</Text>
 					)}
 				</Pressable>
 			</View>

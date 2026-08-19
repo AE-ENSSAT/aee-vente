@@ -10,6 +10,11 @@ export function hapticLongPress() {
 	Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
 
+/** A light tap, e.g. when a pull-to-refresh fires. */
+export function hapticRefresh() {
+	Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+}
+
 /** The system "success" notification pattern (payment accepted). */
 export function hapticSuccess() {
 	Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(

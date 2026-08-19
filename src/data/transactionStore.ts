@@ -23,15 +23,13 @@ export interface Transaction {
 	/** Outcome of the payment attempt. Declined attempts are recorded too, so a
 	 *  confidential receipt can still be offered for them (Apple Tap to Pay req 5.10). */
 	status: 'approved' | 'declined';
-	/** The basket lines that made up this sale. */
 	lines: TransactionLine[];
 }
 
 /**
- * On-device transaction history, persisted as a JSON file in the app's document directory —
- * so it survives closing / reopening the app, and is wiped on sign-out ({@link clear}). No
- * backend: sales are recorded here when a payment completes (approved or declined). Swap this for SumUp's Transactions
- * API later without touching the screens (keep the {@link Transaction} shape).
+ * On-device sale history, a JSON file in the document directory: it survives restarts and
+ * is wiped on sign-out. Declined attempts are kept too. Swappable for SumUp's Transactions
+ * API later without touching the screens, as long as {@link Transaction} holds.
  */
 const FILE_URI = `${FileSystem.documentDirectory}transactions.json`;
 
@@ -46,8 +44,7 @@ async function readAll(): Promise<Transaction[]> {
 		if (!Array.isArray(parsed)) {
 			return [];
 		}
-		// Normalize so every record has a `lines` array and a `status` (older records
-		// predate both — treat those as approved sales).
+		// Older records predate `lines` and `status`; treat those as approved sales.
 		return (parsed as Transaction[]).map((t) => ({
 			...t,
 			status: t.status === 'declined' ? 'declined' : 'approved',

@@ -27,14 +27,11 @@ const rolesLabel = (roles: MyTenantDto['roles']): string =>
 	roles.map((role) => ROLE_LABELS[role] ?? role).join(' · ');
 
 /**
- * Association picker, shown after **every** sign-in — every API call is scoped to exactly
- * one tenant (`X-Tenant-Id`), so one must be settled on before selling. A seller with a
- * single membership passes through here too: the POS is handed between sellers, and which
- * association a shift's takings land in is worth one tap to confirm. Only a session
- * *resumed* at start-up skips it (see `AuthContext.loadSession`).
+ * Association picker, shown after **every** sign-in: every API call is scoped to one tenant,
+ * and the POS is handed between sellers, so which association a shift's takings land in is
+ * worth one tap — even with a single membership. Only a resumed session skips it.
  *
- * It doubles as the way in for a seller who belongs to none yet: an invite code joins an
- * association and switches to it.
+ * It doubles as the way in for a seller who belongs to none: an invite code joins one.
  */
 export default function TenantScreen() {
 	const router = useRouter();

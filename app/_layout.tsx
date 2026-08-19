@@ -14,8 +14,7 @@ import { SessionGuard } from '@/src/presentation/auth/SessionGuard';
 import { BasketProvider } from '@/src/presentation/basket/BasketContext';
 import { SumUpProvider } from '@/src/presentation/sumup/SumUpContext';
 
-// Keep the splash up until the Montserrat faces are ready, so no text flashes in the
-// system font first.
+// Hold the splash until Montserrat is ready, so no text flashes in the system font.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -56,10 +55,8 @@ export default function RootLayout() {
 													| { origin?: string }
 													| undefined
 											)?.origin === 'receipt';
-										// Receipt (from the sell prompt): present as a
-										// full-screen native modal — a real page that
-										// slides up from the bottom and back down on close,
-										// at native speed. From history: the normal card push.
+										// Receipt (from the sell prompt): a full-screen native
+										// modal. From history: the normal card push.
 										return isReceipt
 											? {
 													presentation:

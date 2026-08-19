@@ -26,7 +26,7 @@ const DISCOVERY: AuthSession.DiscoveryDocument = {
 	endSessionEndpoint: KEYCLOAK_ENDPOINTS.logout,
 };
 
-/** The OIDC `userinfo` claims this app displays. All are optional per the spec. */
+/** The OIDC `userinfo` claims this app displays. */
 interface UserInfoResponse {
 	name?: string;
 	given_name?: string;
@@ -41,11 +41,7 @@ interface KeycloakErrorBody {
 	error_description?: string;
 }
 
-/**
- * Keycloak's endpoints are form-encoded. The User-Agent matches the API client's, so the
- * token exchange and the API calls it authorises are attributable to the same app build
- * in server logs and in a proxy.
- */
+/** Keycloak's endpoints are form-encoded; the User-Agent matches the API client's. */
 const FORM_HEADERS = {
 	'Content-Type': 'application/x-www-form-urlencoded',
 	'User-Agent': USER_AGENT,
@@ -63,24 +59,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 /**
  * {@link AuthService} over the Keycloak realm that signs the API's bearer tokens.
  *
- * Uses **SSO**: authorization code + PKCE, with the sign-in page shown by Keycloak itself
- * in a system browser session (`ASWebAuthenticationSession` / Custom Tab) rather than in
- * our UI. The app therefore never sees a password, and the client
- * (`KEYCLOAK_CLIENT_ID`) can stay public with only *Standard flow* enabled — PKCE is what
- * makes that safe without a client secret.
- *
- * Only the browser round-trip uses `expo-auth-session`; the code-for-token exchange goes
- * through the same {@link requestToken} helper as refresh and shares its error mapping.
- *
- * The service owns the token lifecycle and pushes the result into {@link apiSession},
- * which is what the API client's interceptors actually read.
+ * SSO: authorization code + PKCE, with Keycloak's own page in a system browser session, so
+ * the app never sees a password and the client can stay public with no secret.
  */
 export class KeycloakAuthService implements AuthService {
 	private refreshToken: string | null = null;
-	/**
-	 * Kept from the last token response purely to pass as `id_token_hint` on sign-out.
-	 * In memory only — it's short-lived and useless once the session is over.
-	 */
+	/** Kept only to pass as `id_token_hint` on sign-out; useless once the session ends. */
 	private idToken: string | null = null;
 
 	constructor() {
@@ -93,13 +77,8 @@ export class KeycloakAuthService implements AuthService {
 	}
 
 	/**
-	 * Who is signed in, in the words a seller would recognise. The AEE Manager API only
-	 * ever returns a login handle (`aee-test`), so the realm's OIDC **userinfo** endpoint
-	 * is the source for a real name — it answers for whatever access token is current,
-	 * which makes this work identically after a restored session and after a fresh
-	 * sign-in, without depending on the ID token surviving a refresh.
-	 *
-	 * Never throws: a display name is not worth failing a session over.
+	 * The API returns only a login handle, so real names come from the realm's userinfo
+	 * endpoint. Never throws: a display name isn't worth failing a session over.
 	 */
 	async fetchUser(): Promise<AuthUser | null> {
 		const token = apiSession.getAccessToken();
@@ -135,16 +114,13 @@ export class KeycloakAuthService implements AuthService {
 			return false;
 		}
 		this.refreshToken = stored;
-		// Nothing is persisted about the access token, so start by minting a fresh one.
-		// A rejected refresh means the session lapsed while the app was closed.
-		// (Restoring the *tenant* is `tenantService`'s job — this service owns tokens only.)
+		// Only the refresh token is persisted; a rejected refresh means the session lapsed.
 		return (await this.refreshAccessToken()) !== null;
 	}
 
 	async signIn(): Promise<boolean> {
-		// PKCE: expo-auth-session generates the verifier/challenge pair and holds the
-		// verifier here in the app, so an intercepted authorization code is worthless
-		// without it. That's what lets a public client skip a client secret.
+		// PKCE: the verifier never leaves the app, so an intercepted code is worthless —
+		// which is what lets a public client skip a secret.
 		const request = new AuthSession.AuthRequest({
 			clientId: KEYCLOAK_CLIENT_ID,
 			redirectUri: AUTH_REDIRECT_URI,
@@ -155,7 +131,7 @@ export class KeycloakAuthService implements AuthService {
 
 		const result = await request.promptAsync(DISCOVERY);
 
-		// Dismissed, cancelled, or backed out of: not an error, just nothing to do.
+		// Dismissed or cancelled: not an error.
 		if (result.type !== 'success') {
 			if (result.type === 'error') {
 				throw toAuthError(result.error ?? undefined);
@@ -167,7 +143,6 @@ export class KeycloakAuthService implements AuthService {
 			grant_type: 'authorization_code',
 			code: result.params.code,
 			redirect_uri: AUTH_REDIRECT_URI,
-			// Proves this app started the flow.
 			code_verifier: request.codeVerifier ?? '',
 		});
 		await this.adopt(tokens);
@@ -182,8 +157,7 @@ export class KeycloakAuthService implements AuthService {
 		apiSession.clear();
 		await tokenStorage.clear();
 
-		// Both steps below are best-effort: the local session is already gone, so a
-		// failure here (offline, for instance) must not surface as a failed sign-out.
+		// Both steps are best-effort: the local session is already gone either way.
 
 		// 1. Back channel — revoke the refresh token so it can't be replayed.
 		if (token) {
@@ -197,19 +171,16 @@ export class KeycloakAuthService implements AuthService {
 					{ headers: FORM_HEADERS, timeout: 5_000 },
 				);
 			} catch {
-				// Ignored on purpose — see above.
+				// Best-effort, as above.
 			}
 		}
 
-		// 2. Front channel — end the SSO session in the browser too. Revoking our tokens
-		// leaves Keycloak's own cookie intact, so without this the next "Se connecter via
-		// SSO" would silently sign the SAME person back in with no prompt: on a POS handed
-		// between sellers that's a real problem, not a cosmetic one.
+		// 2. Front channel. Without it Keycloak's SSO cookie survives and the next
+		// "Se connecter" silently returns the SAME seller — on a shared POS, a real bug.
 		try {
 			const params = new URLSearchParams({
 				post_logout_redirect_uri: AUTH_REDIRECT_URI,
-				// Keycloak needs one of these to accept the redirect; the id_token makes
-				// the logout silent, the client id alone can prompt for confirmation.
+				// Keycloak needs one of these; the id_token makes the logout silent.
 				...(idToken
 					? { id_token_hint: idToken }
 					: { client_id: KEYCLOAK_CLIENT_ID }),
@@ -219,15 +190,11 @@ export class KeycloakAuthService implements AuthService {
 				AUTH_REDIRECT_URI,
 			);
 		} catch {
-			// Ignored on purpose — see above.
+			// Best-effort, as above.
 		}
 	}
 
-	/**
-	 * Exchange the refresh token for a new access token. Resolves null when there is no
-	 * refresh token or Keycloak refused it — the caller then treats the session as over.
-	 * Concurrency is handled upstream by {@link apiSession.refresh}.
-	 */
+	/** Null when there is no refresh token or Keycloak refused it — the session is then over. */
 	private async refreshAccessToken(): Promise<string | null> {
 		if (!this.refreshToken) {
 			return null;
@@ -249,7 +216,6 @@ export class KeycloakAuthService implements AuthService {
 
 	/** Take a token response into the API session and onto disk. */
 	private async adopt(tokens: TokenResponse): Promise<void> {
-		// Hand the lifetime over too, so the client renews ahead of expiry.
 		apiSession.setAccessToken(tokens.access_token, tokens.expires_in);
 		// Keycloak rotates refresh tokens by default — always keep the newest one.
 		if (tokens.refresh_token) {
@@ -262,7 +228,7 @@ export class KeycloakAuthService implements AuthService {
 		}
 	}
 
-	/** POST the token endpoint, translating OAuth errors into {@link ApiError}. */
+	/** POST the token endpoint, mapping OAuth errors onto {@link ApiError}. */
 	private async requestToken(
 		params: Record<string, string>,
 	): Promise<TokenResponse> {

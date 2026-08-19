@@ -1,10 +1,6 @@
 import axios from 'axios';
 
-/**
- * The error body every AEE Manager endpoint returns (NestJS' default shape):
- * `{ "message": "Missing bearer token", "error": "Unauthorized", "statusCode": 401 }`.
- * Validation failures put an array of messages in `message`.
- */
+/** NestJS' default error shape; validation failures put an array in `message`. */
 interface ApiErrorBody {
 	message?: string | string[];
 	error?: string;
@@ -12,9 +8,8 @@ interface ApiErrorBody {
 }
 
 /**
- * A failed API call, normalized so callers never have to unwrap an `AxiosError`.
- * {@link message} is safe to show to the user; {@link status} lets the UI branch
- * (401 → sign in again, 403 → wrong role on this tenant, 409 → conflict…).
+ * A failed API call, normalized so callers never unwrap an `AxiosError`. {@link message} is
+ * safe to show; {@link status} lets the UI branch (401 → sign in again, 403 → wrong role…).
  */
 export class ApiError extends Error {
 	/** HTTP status, or null when the request never got a response (offline, DNS, timeout). */
@@ -54,9 +49,8 @@ const TIMEOUT_MESSAGE = 'Le serveur met trop de temps à répondre.';
 const UNKNOWN_MESSAGE = 'Une erreur inattendue est survenue.';
 
 /**
- * Convert anything thrown by the client into an {@link ApiError}. Every call in
- * `src/api` funnels through here, so a caller can always `catch (e)` and read
- * `e.message` / `e.status` without knowing axios exists.
+ * Every call in `src/api` funnels through here, so a caller can read `e.message` /
+ * `e.status` without knowing axios exists.
  */
 export function toApiError(error: unknown): ApiError {
 	if (error instanceof ApiError) {
@@ -82,8 +76,7 @@ export function toApiError(error: unknown): ApiError {
 			: body.message
 				? [body.message]
 				: [];
-		// Prefer the server's own wording; fall back to its short error label, then
-		// to the status line — never leave the user with an empty message.
+		// Prefer the server's wording, then its error label, then the status line.
 		const message =
 			details[0] ??
 			body.error ??

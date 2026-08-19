@@ -15,11 +15,9 @@ export interface SellGridsState {
 }
 
 /**
- * Loads sell grids from the {@link sellGridRepository}. The component only sees grids
- * + loading/error; whether they come from dummy data or the API is invisible here.
- *
- * Keyed on the selected tenant: each association has its own catalogue, so switching one
- * reloads the grids instead of leaving the previous association's products on screen.
+ * Loads sell grids from the {@link sellGridRepository} — the component never learns whether
+ * they came from the API or dummy data. Keyed on the tenant: each association has its own
+ * catalogue.
  */
 export function useSellGrids(): SellGridsState {
 	const { tenant } = useAuth();
@@ -30,8 +28,8 @@ export function useSellGrids(): SellGridsState {
 		error: null,
 		refreshing: false,
 	});
-	// Stamps each request so only the newest one may write: a tenant switch landing while a
-	// pull-to-refresh is still in flight must not be overwritten by the older answer.
+	// Stamps each request so only the newest may write: a tenant switch landing mid-refresh
+	// must not be overwritten by the older answer.
 	const latest = useRef(0);
 
 	const load = useCallback((mode: 'initial' | 'refresh') => {
@@ -67,9 +65,8 @@ export function useSellGrids(): SellGridsState {
 				const message =
 					error instanceof Error ? error.message : String(error);
 				setState((prev) =>
-					// A failed *refresh* keeps what is already on screen: a till mid-service
-					// must not go blank because one request timed out. Only a load that had
-					// nothing to show falls through to the error screen.
+					// A failed *refresh* keeps what is on screen: a till mid-service must not go
+					// blank because one request timed out.
 					mode === 'refresh'
 						? { ...prev, refreshing: false, error: message }
 						: {
@@ -82,9 +79,8 @@ export function useSellGrids(): SellGridsState {
 			});
 	}, []);
 
-	// `tenantId` is a refetch key rather than a value the effect reads: the repository picks
-	// the tenant up from the API session. Dropping it (as the rule suggests) would leave the
-	// previous association's catalogue on screen after a switch.
+	// `tenantId` is a refetch key, not a value the effect reads: the repository takes the
+	// tenant from the API session.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: deliberate refetch key
 	useEffect(() => {
 		load('initial');

@@ -1,10 +1,8 @@
 import { Platform } from 'react-native';
 
 /**
- * Apple's Tap to Pay on iPhone review checklist (req 1.4) requires that, on iOS versions
- * where the card reader isn't supported (prior to 17.6), the app tells the merchant to
- * update iOS rather than failing silently. The app installs on iOS 16.7+ (so the Bluetooth
- * reader still works on 16.7–17.5), but Tap to Pay needs iOS 17.6+.
+ * Apple's checklist (req 1.4) wants the app to say "update iOS" rather than fail silently
+ * below 17.6. The app installs on 16.7+, where the Bluetooth reader still works.
  */
 const MIN_TAP_TO_PAY_IOS = { major: 17, minor: 6 };
 

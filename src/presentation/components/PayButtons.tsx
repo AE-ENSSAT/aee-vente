@@ -11,25 +11,17 @@ import { PaymentErrorBanner } from './PaymentErrorBanner';
 import { PrimaryButton } from './PrimaryButton';
 import { TapToPayIcon } from './TapToPayIcon';
 
-/**
- * Tap to Pay runs on the host device — label it per platform. The iOS string is Apple's
- * exact wordmark ("Tap to Pay sur iPhone", lowercase "to"), per the localized Tap to Pay
- * button copy (req 5.4).
- */
+/** The iOS string is Apple's exact wordmark, per the localized button copy (req 5.4). */
 const TAP_TO_PAY_LABEL =
 	Platform.OS === 'ios' ? 'Tap to Pay sur iPhone' : 'Tap to Pay sur Android';
 
 interface Props {
-	/** The rails this tenant has enabled (`GET /payment-method-config`) — only these are
-	 *  offered. Defaults to all of them while the config is loading, so a slow or failed
-	 *  fetch never leaves the merchant with no way to take money. */
+	/** Only these rails are offered. Defaults to all while the config loads, so a slow or
+	 *  failed fetch never leaves the merchant unable to take money. */
 	enabledMethods: CheckoutMethod[];
-	/** Which method is being charged (null when idle) — only that button spins, so the others
-	 *  never look disabled (Apple Tap to Pay req 5.3). */
+	/** Only that button spins, so the others never look disabled (Apple req 5.3). */
 	pendingMethod: CheckoutMethod | null;
-	/** A failure to surface (a declined/aborted payment), or null. */
 	error: string | null;
-	/** Clear the payment error banner. */
 	onDismissError: () => void;
 	/** Charge a card method now — the SumUp native UI is its own confirmation. */
 	onPayCard: (method: PaymentMethod) => void;
@@ -38,13 +30,11 @@ interface Props {
 }
 
 /**
- * The method chooser shown on the {@link PaymentSheet}: the card methods (Tap to Pay, the
- * Bluetooth reader) and cash ("Espèces", in green) as equal full-width choices, then — clearly
- * demoted to an underlined link, since it isn't a way to pay — the card-reader settings.
+ * The method chooser on the {@link PaymentSheet}: card methods and cash as equal full-width
+ * choices, then the card-reader settings demoted to a link, since it isn't a way to pay.
  *
- * Presentation only: the checkout hook lives up in the sheet (which also owns the cash-confirm
- * step), so this component just reports which method was chosen. No pay button is greyed on an
- * empty basket (Apple req 5.3), and the sheet is only reachable from a non-empty basket anyway.
+ * Presentation only — the checkout hook lives up in the sheet. No pay button is greyed on an
+ * empty basket (Apple req 5.3), which the sheet isn't reachable from anyway.
  */
 export function PayButtons({
 	enabledMethods,

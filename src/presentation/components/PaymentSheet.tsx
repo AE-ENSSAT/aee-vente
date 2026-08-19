@@ -14,7 +14,7 @@ import { useCheckout } from '@/src/presentation/checkout/useCheckout';
 import { usePaymentMethods } from '@/src/presentation/checkout/usePaymentMethods';
 import { formatEuros } from '@/src/presentation/money';
 import type { PaymentMethod } from '@/src/services/PaymentService';
-import { BOTTOM_GAP, FONT } from '../theme';
+import { BOTTOM_GAP, FONT, SCREEN_TITLE } from '../theme';
 import { useBottomSpace } from '../useBottomSpace';
 import { PayButtons } from './PayButtons';
 import { PrimaryButton } from './PrimaryButton';
@@ -22,37 +22,28 @@ import { PrimaryButton } from './PrimaryButton';
 interface Props {
 	visible: boolean;
 	onClose: () => void;
-	/** Fired the instant a payment succeeds, so the sell screen can start the success flourish
-	 *  (which closes this sheet and the basket behind it). Carries the sale's id, or null when
-	 *  it wasn't persisted. */
+	/** The sale's id, or null when it wasn't persisted; starts the success flourish. */
 	onPaid?: (transactionId: string | null) => void;
 }
 
-/** Side gutter for the page body — a touch tighter than the app margin so the full-width
- *  buttons breathe without feeling boxed in. */
+/** Slightly tighter than the app margin, so full-width buttons don't feel boxed in. */
 const PAGE_PADDING = 24;
 
 /** The page's two views: pick a method, or confirm a cash sale. */
 type Mode = 'methods' | 'cash';
 
-/** Duration of the horizontal push/pop between the two views. */
 const SLIDE_MS = 220;
 
 /**
- * The "Paiement" page: a full-screen native sheet (react-native-true-sheet, single detent 1)
- * that slides up from the bottom over the open basket — the same rise as the post-payment
- * receipt. The header pins the total (a reminder of what's being charged); the body is either
+ * The "Paiement" page: a full-screen native sheet over the open basket. Its body is either
  * the method chooser ({@link PayButtons}) or the cash-confirmation step.
  *
- * Card methods confirm themselves through SumUp's native UI, so they charge immediately. Cash
- * has no such UI, so tapping "Espèces" opens an explicit confirm view (`mode: 'cash'`) before
- * the sale is recorded. The checkout hook lives here (not in PayButtons) so both the card
- * buttons and the cash confirm drive the one flow.
+ * Card methods confirm through SumUp's own UI, so they charge immediately; cash has none,
+ * hence the explicit confirm step. The checkout hook lives here rather than in PayButtons so
+ * both paths drive one flow.
  *
- * It stacks over the basket sheet (a proven pattern here — the product detail sheet does the
- * same), so SumUp's native payment UI still presents above it (it targets the top-most presented
- * view controller), and cancelling drops straight back to the basket. On success the sell
- * screen's flourish covers it while it and the basket are dismissed behind it, unseen.
+ * Stacking over the basket sheet keeps SumUp's native UI above it (it targets the top-most
+ * presented view controller) and drops back to the basket on cancel.
  */
 export function PaymentSheet({ visible, onClose, onPaid }: Props) {
 	const sheet = useRef<TrueSheet>(null);
@@ -60,15 +51,13 @@ export function PaymentSheet({ visible, onClose, onPaid }: Props) {
 	const { totalCents } = useBasket();
 	const { checkout, busy, pendingMethod, error, dismissError } =
 		useCheckout(onPaid);
-	// Which rails this association actually takes — the cash-only ones show no card buttons.
 	const enabledMethods = usePaymentMethods();
 	const [mode, setMode] = useState<Mode>('methods');
-	// Opts out of true-sheet's auto safe-area (`insetAdjustment="never"`), so the last button
-	// clears the system bar itself — same as the basket sheet.
+	// Opts out of true-sheet's auto safe-area, so the last button clears the system bar.
 	const bottomPad = useBottomSpace(BOTTOM_GAP);
 
-	// Act only on real visible transitions. Skipping the initial false avoids dismiss()-ing
-	// before the native view registers ("No sheet found with tag"). Mirrors BasketSheet.
+	// Skipping the initial false avoids dismiss()-ing before the native view registers.
+	// Mirrors BasketSheet.
 	useEffect(() => {
 		if (visible && !presented.current) {
 			presented.current = true;
@@ -79,9 +68,8 @@ export function PaymentSheet({ visible, onClose, onPaid }: Props) {
 		}
 	}, [visible]);
 
-	// Dragged/closed natively: clear our flag + any stale error and reset to the method chooser
-	// (so the next open starts fresh — done here, off-screen, so reopening never animates), then
-	// let the parent flip `visible` to false.
+	// Dragged closed natively: clear the flag, any stale error, and reset to the chooser —
+	// done off-screen, so reopening never animates.
 	const handleDidDismiss = useCallback(() => {
 		presented.current = false;
 		dismissError();
@@ -89,8 +77,8 @@ export function PaymentSheet({ visible, onClose, onPaid }: Props) {
 		onClose();
 	}, [onClose, dismissError]);
 
-	// Ignore stray taps during the async window before SumUp's native UI covers the sheet, so a
-	// second card method can't be launched over an in-flight one.
+	// Ignore stray taps in the async window before SumUp's native UI covers the sheet, so a
+	// second method can't launch over an in-flight one.
 	const payCard = useCallback(
 		(method: PaymentMethod) => {
 			if (busy) {
@@ -101,8 +89,8 @@ export function PaymentSheet({ visible, onClose, onPaid }: Props) {
 		[busy, checkout],
 	);
 
-	// Espèces: a no-op while a card attempt is in flight (its busy/error must not bleed into the
-	// confirm view, which shows no error banner). Otherwise clear any card error and confirm.
+	// A no-op while a card attempt is in flight: its busy/error must not bleed into the
+	// confirm view, which shows no error banner.
 	const selectCash = useCallback(() => {
 		if (busy) {
 			return;
@@ -226,8 +214,7 @@ interface CashConfirmProps {
 	onCancel: () => void;
 }
 
-/** The cash confirmation step: no card UI stands in for the merchant taking the notes, so this
- *  makes them confirm the amount before the sale is recorded. */
+/** No card UI stands in for the merchant taking notes, so make them confirm the amount. */
 function CashConfirm({ total, busy, onConfirm, onCancel }: CashConfirmProps) {
 	return (
 		<View style={styles.confirm}>
@@ -270,26 +257,17 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'space-between',
 		paddingHorizontal: 18,
-		// Clears the native grabber above the title bar.
+		// Clears the native grabber.
 		paddingTop: 24,
 	},
-	// Fixed footprint on each side so the title stays optically centred (holds the back
-	// chevron in cash mode, empty otherwise / the close button opposite).
+	// Fixed footprint each side, so the title stays optically centred.
 	headerSide: {
 		width: 36,
 		height: 36,
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	title: {
-		flex: 1,
-		textAlign: 'center',
-		fontSize: 22,
-		fontFamily: FONT.black,
-		color: '#A91B3A',
-		textTransform: 'uppercase',
-		letterSpacing: 0.3,
-	},
+	title: SCREEN_TITLE,
 	closeBtn: {
 		width: 36,
 		height: 36,
@@ -298,7 +276,6 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	// Header back/close while a payment is committing — matches the disabled "Annuler".
 	btnDisabled: { opacity: 0.4 },
 	totalBlock: { alignItems: 'center', gap: 6, paddingTop: 20 },
 	totalLabel: {

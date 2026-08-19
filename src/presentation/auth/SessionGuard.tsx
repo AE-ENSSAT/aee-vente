@@ -3,15 +3,11 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 
 /**
- * Sends the app back to the login screen when a live session ends on its own — the refresh
- * token expired or was revoked, so the API client gave up (see `apiSession.refresh`).
+ * Returns to the login screen when a live session ends on its own (refresh token expired or
+ * revoked), instead of leaving a seller mid-shift watching every call fail.
  *
- * Without this, a seller mid-shift would sit on the sell page watching every call fail with
- * no obvious way back. Renders nothing; it only watches.
- *
- * Only a `signedIn → signedOut` transition redirects: the app *starts* signed out, and that
- * first render is already the login screen. Sign-out from the settings screen resets the
- * navigation stack itself, so it arrives there before this fires.
+ * Only a `signedIn → signedOut` transition redirects: the app starts signed out on the login
+ * screen anyway, and an explicit sign-out resets the stack itself. Renders nothing.
  */
 export function SessionGuard() {
 	const { status } = useAuth();

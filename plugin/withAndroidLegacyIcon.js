@@ -1,43 +1,26 @@
 /**
- * Expo config plugin: force a PLAIN PNG RASTER Android launcher icon.
+ * Expo config plugin: emit the Android launcher raster as PNG instead of WEBP.
  *
- * WHY: Firebase App Distribution (both the web console and the App Tester install
- * screen) renders the app icon by decoding it as a bitmap. It cannot render an
- * adaptive icon (`mipmap-anydpi-v26/ic_launcher.xml`), and its extractor also fails
- * on the WEBP raster that Expo emits -- either way it falls back to a generic gray
- * "A". iOS is unaffected.
+ * Firebase App Distribution decodes the icon as a bitmap and fails on the WEBP that Expo
+ * emits (`withAndroidIcons` hardcodes `ic_launcher.webp`), falling back to a generic grey
+ * "A". Per density folder this writes `ic_launcher.png` and deletes the colliding `.webp` —
+ * same base name is the same resource id, which aapt rejects as a duplicate — plus any
+ * round variant.
  *
- * `@expo/prebuild-config`'s `withAndroidIcons` already deletes the adaptive XML when
- * `android.adaptiveIcon` is unset, BUT it hardcodes the legacy raster filename to
- * `ic_launcher.webp` (see IC_LAUNCHER_WEBP in withAndroidIcons.js -- there is no
- * option to emit PNG). This plugin runs AFTER that mod and, per density folder:
- *   1. writes `ic_launcher.png` (a resized copy of the source icon), and
- *   2. deletes the sibling `ic_launcher.webp` -- a `.png` and a `.webp` with the
- *      same base name in one res folder are the SAME resource id, so leaving both
- *      is an aapt "duplicate resources" build failure -- plus any `ic_launcher_round.*`.
- * It also deletes `mipmap-anydpi-v26/ic_launcher*.xml` defensively so no adaptive
- * icon can shadow the raster.
+ * It leaves `mipmap-anydpi-v26/ic_launcher.xml` alone: the adaptive icon is what fills the
+ * launcher's mask on the device, and stripping it makes Android shrink the raster into a
+ * generated white circle instead. The PNG stays as the bitmap App Distribution can decode.
  *
- * ORDERING (why this reliably runs last): user config plugins register their mods
- * inside `getConfig({ isModdedConfig: true })`, i.e. BEFORE `getPrebuildConfig` adds
- * the built-in `withAndroidIcons`. Same-name dangerous mods execute in REVERSE
- * registration order (@expo/config-plugins withMod chaining: the last-registered mod
- * runs its body first, then delegates to `nextMod`). So the built-in icon mod runs
- * first and this one runs last -- our files land on top of Expo's.
- *
- * TRADE-OFF / PITFALL: shipping only the legacy raster means NO adaptive-icon masking
- * on the device home screen, and Google Play REQUIRES an adaptive icon for new apps.
- * This project distributes an APK to Firebase (not an AAB to Play), so that's fine;
- * if you ever ship to Play, gate this plugin behind an env flag and provide
- * `android.adaptiveIcon` for the Play build instead.
+ * It reliably runs last: user plugins register their mods BEFORE the built-in icon mod, and
+ * same-name dangerous mods execute in reverse registration order.
  */
 const { withDangerousMod } = require('@expo/config-plugins');
 const { generateImageAsync } = require('@expo/image-utils');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Legacy launcher-icon pixel sizes per density. Matches @expo/prebuild-config:
-// LEGACY_BASELINE_PIXEL_SIZE (48dp) multiplied by each density's scale.
+// Legacy launcher sizes per density: 48dp baseline × each density's scale, as
+// @expo/prebuild-config does it.
 const DENSITIES = [
 	{ folder: 'mipmap-mdpi', size: 48 },
 	{ folder: 'mipmap-hdpi', size: 72 },
@@ -69,9 +52,8 @@ const withAndroidLegacyIcon = (config) => {
 				const dir = path.join(resDir, folder);
 				await fs.promises.mkdir(dir, { recursive: true });
 
-				// generateImageAsync always returns a PNG buffer (sharp `.png()`
-				// or the bundled Jimp fallback -> `image/png`), so no sharp
-				// install is required in CI. No cacheType => resize in-process.
+				// generateImageAsync always returns a PNG buffer (sharp, or the bundled Jimp
+				// fallback), so CI needs no sharp install.
 				const { source } = await generateImageAsync(
 					{ projectRoot },
 					{
@@ -93,11 +75,6 @@ const withAndroidLegacyIcon = (config) => {
 				await rm(path.join(dir, 'ic_launcher_round.webp'));
 				await rm(path.join(dir, 'ic_launcher_round.png'));
 			}
-
-			// 2. Remove any adaptive icon so it can't shadow the raster.
-			const anydpi = path.join(resDir, 'mipmap-anydpi-v26');
-			await rm(path.join(anydpi, 'ic_launcher.xml'));
-			await rm(path.join(anydpi, 'ic_launcher_round.xml'));
 
 			return config;
 		},

@@ -12,55 +12,40 @@ import {
 import { FullWindowOverlay } from 'react-native-screens';
 import { FONT } from '../theme';
 
-// The checkmark is driven by its `progress` prop (an absolute frame seek), not an imperative
-// play() — see CHECK_* below. `progress` is not a native-animated prop, so it is JS-driven
-// (useNativeDriver: false); this wrapper makes that explicit.
+// `progress` is not a native-animated prop, so this wrapper is JS-driven (see CHECK_END).
 const AnimatedLottieView = Animated.createAnimatedComponent(LottieView);
 
-// Lottie animation objects; require keeps them typed as `any`, matching LottieView's source.
 const CONFETTI = require('../../../assets/lottie/confetti.json');
 const CHECKMARK = require('../../../assets/lottie/checkmark.json');
 
-/** How long the bottom message takes to fade in while the check draws. */
 const MESSAGE_FADE_IN_MS = 400;
 
 /**
- * The checkmark's "draw" segment (marker "Segment 1"): frames 0 → 100 of the 180-frame, 60fps
- * composition. We drive it by `progress` (0 → 100/180) rather than play(0,100): an absolute
- * frame seek carries NO play-state, so it survives the native view being recycled across
- * payments — imperative play() leaves a frozen layer config (speed 0) that breaks the 3rd play
- * — and shows frame 0 from the very first render (no stale full-checkmark flash on a recycle).
+ * The checkmark's draw segment: frames 0 → 100 of 180. Driven by `progress` (an absolute
+ * seek) rather than play(), which carries no play-state and so survives the native view
+ * being recycled across payments — play() leaves it frozen on the third play.
  */
 const CHECK_END = 100;
 const CHECK_TOTAL_FRAMES = 180;
 const CHECK_TARGET = CHECK_END / CHECK_TOTAL_FRAMES;
 const CHECK_DURATION_MS = (CHECK_END / 60) * 1000;
 
-/** How long the flourish holds at full opacity before the closing fade begins. Timer-driven
- *  on purpose: Lottie's `onAnimationFinish` is unreliable on Android. */
+/** Timer-driven on purpose: Lottie's `onAnimationFinish` is unreliable on Android. */
 const HOLD_MS = 1900;
 
-/** The closing fade-out that reveals the (now cleared, sheet-less) sell screen behind it. */
 const FADE_OUT_MS = 450;
 
 /**
- * Renders its children ABOVE EVERYTHING — crucially, above the native basket sheet — in a layer
- * that is INDEPENDENT of that sheet. This is the whole trick: because the layer doesn't belong to
- * the sheet's view-controller stack, the basket can be emptied and the sheet dismissed *behind*
- * it with ANY timing and none of it is ever seen.
- *
- * - iOS: react-native-screens `FullWindowOverlay` — a view added straight into the key window,
- *   on top of every presented view controller (incl. the sheet).
- * - Android: a `Modal` — a Dialog in its own window, above the sheet's in-window CoordinatorLayout.
+ * Renders children above everything in a layer INDEPENDENT of the basket sheet — which is
+ * what lets the sheet dismiss behind it unseen. iOS: `FullWindowOverlay` (key window);
+ * Android: a `Modal` (its own window, above the sheet's CoordinatorLayout).
  */
 function TopLayer({ children }: { children: ReactNode }) {
 	if (Platform.OS === 'ios') {
 		return <FullWindowOverlay>{children}</FullWindowOverlay>;
 	}
 	return (
-		// statusBarTranslucent + navigationBarTranslucent so the full-bleed flourish covers
-		// under BOTH system bars on Android edge-to-edge — otherwise the basket sheet
-		// dismissing behind it can peek through the nav-bar strip.
+		// Translucent bars, so the flourish covers under both on Android edge-to-edge.
 		<Modal
 			visible
 			transparent
@@ -74,22 +59,16 @@ function TopLayer({ children }: { children: ReactNode }) {
 }
 
 interface Props {
-	/** Flip to `true` to play the flourish once. */
 	visible: boolean;
-	/** Fires after the closing fade has finished; hide it (set `visible` false) here. */
 	onHidden: () => void;
 }
 
 /**
- * Full-screen payment-success flourish — an opaque white screen, a confetti burst, a centered
- * checkmark, and "Paiement accepté !". It pops opaque ON TOP OF EVERYTHING the instant payment
- * succeeds; meanwhile the basket is emptied and the sheet closed behind it (unseen). After a
- * hold the whole thing fades out onto the cleared screen. Drive it with `visible`, react to
- * `onHidden`.
+ * Full-screen payment-success flourish, opaque and above everything, so the basket can be
+ * emptied and its sheet dismissed behind it unseen. `onHidden` fires after the closing fade.
  */
-// memo: while celebrating, the sell screen re-renders (the basket empties, the sheet closes)
-// — those must NOT re-render this overlay, or the in-flight checkmark Lottie restarts. Its
-// props (`visible`, a stable `onHidden`) don't change during a play-through, so memo skips it.
+// memo: the sell screen re-renders while this plays (basket empties, sheet closes), and
+// that must not restart the in-flight checkmark.
 export const PaymentSuccessOverlay = memo(function PaymentSuccessOverlay({
 	visible,
 	onHidden,
@@ -108,30 +87,25 @@ export const PaymentSuccessOverlay = memo(function PaymentSuccessOverlay({
 /** One play-through of the flourish. Mounted only while visible, so it just runs on mount. */
 function Burst({ onHidden }: { onHidden: () => void }) {
 	const confetti = useRef<LottieView>(null);
-	// The checkmark's frame (0 → CHECK_TARGET). Set from the first render, so a recycled
-	// native view never flashes its parked last (full) frame.
+	// Set from the first render, so a recycled view never flashes its parked last frame.
 	const checkProgress = useRef(new Animated.Value(0)).current;
 	const messageOpacity = useRef(new Animated.Value(0)).current;
-	// The whole overlay's opacity: 1 while covering, animated to 0 for the closing fade.
 	const rootOpacity = useRef(new Animated.Value(1)).current;
 
 	// Call the LATEST onHidden, but never let its identity re-run the play-once effect below.
 	const onHiddenRef = useRef(onHidden);
 	onHiddenRef.current = onHidden;
 
-	// Guard so each Lottie is driven exactly once — a double-invoked effect (StrictMode) would
-	// otherwise restart them mid-play.
+	// Play exactly once — a double-invoked effect (StrictMode) would restart mid-play.
 	const played = useRef(false);
 
 	useEffect(() => {
 		if (!played.current) {
 			played.current = true;
-			// Confetti plays full-range; full play() never pins it to a frame, so it survives
-			// recycle. reset() first in case the recycled view is parked on its last frame.
+			// reset() first: a recycled view may be parked on its last frame.
 			confetti.current?.reset();
 			confetti.current?.play();
-			// Checkmark: ramp its progress 0 → CHECK_TARGET. An absolute seek every frame, so
-			// no stale play-state can freeze it on the 3rd+ recycled play.
+			// An absolute seek every frame, so no stale play-state can freeze a recycled view.
 			Animated.timing(checkProgress, {
 				toValue: CHECK_TARGET,
 				duration: CHECK_DURATION_MS,
@@ -145,7 +119,7 @@ function Burst({ onHidden }: { onHidden: () => void }) {
 			useNativeDriver: true,
 		}).start();
 
-		// Hold the flourish, then fade the whole thing out and hand back the cleared screen.
+		// Hold, then fade out onto the cleared screen.
 		const hold = setTimeout(() => {
 			Animated.timing(rootOpacity, {
 				toValue: 0,
@@ -192,22 +166,19 @@ function Burst({ onHidden }: { onHidden: () => void }) {
 }
 
 const styles = StyleSheet.create({
-	// Fills the host layer (the key-window overlay on iOS, the Modal on Android).
 	overlay: {
-		...StyleSheet.absoluteFillObject,
+		...StyleSheet.absoluteFill,
 		backgroundColor: 'transparent',
 	},
-	flash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#ffffff' },
-	lottie: { ...StyleSheet.absoluteFillObject },
-	// Centered over the confetti, in front of it.
+	flash: { ...StyleSheet.absoluteFill, backgroundColor: '#ffffff' },
+	lottie: { ...StyleSheet.absoluteFill },
 	center: {
-		...StyleSheet.absoluteFillObject,
+		...StyleSheet.absoluteFill,
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
 	checkmark: { width: 200, height: 200 },
-	// Occupies the bottom half; centering the text in it lands it midway between the
-	// screen centre and the bottom.
+	// Bottom half; centring the text in it lands it between the screen centre and the bottom.
 	messageWrap: {
 		position: 'absolute',
 		top: '50%',

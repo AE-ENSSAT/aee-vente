@@ -17,7 +17,7 @@ import {
 import { PaymentMethodIcon } from '@/src/presentation/components/PaymentMethodIcon';
 import { formatEuros } from '@/src/presentation/money';
 import { paymentMethodLabel } from '@/src/presentation/paymentMethod';
-import { FONT } from '@/src/presentation/theme';
+import { FONT, SCREEN_TITLE } from '@/src/presentation/theme';
 
 /** "04/07 · 14:32" — short, locale-independent. */
 function formatDate(timestamp: number): string {
@@ -27,9 +27,8 @@ function formatDate(timestamp: number): string {
 }
 
 /**
- * Transaction history, opened from the settings screen. Reads the locally-persisted sales
- * ({@link transactionStore}); a sale is recorded when a payment completes (approved or declined), and the history is
- * cleared on sign-out. Empty until the first real payment goes through.
+ * Transaction history, from the locally-persisted sales — approved and declined — which are
+ * cleared on sign-out.
  */
 export default function TransactionsScreen() {
 	const router = useRouter();
@@ -160,14 +159,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	title: {
-		flex: 1,
-		textAlign: 'center',
-		fontSize: 18,
-		fontFamily: FONT.black,
-		color: '#A91B3A',
-		letterSpacing: 0.2,
-	},
+	title: SCREEN_TITLE,
 	center: {
 		flex: 1,
 		alignItems: 'center',

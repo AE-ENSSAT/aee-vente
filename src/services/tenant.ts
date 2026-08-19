@@ -2,12 +2,9 @@ import { apiSession } from '@/src/api';
 import { tokenStorage } from './auth/tokenStorage';
 
 /**
- * The tenant (association) every API call is scoped to.
- *
- * A user can belong to several — `GET /me/tenants` lists them — and the chosen one is
- * sent as `X-Tenant-Id` on every request. It is kept in two places on purpose: in
- * {@link apiSession} because that is what the client's interceptor reads, and on disk so
- * a seller who only ever works for one association is never asked to pick again.
+ * The tenant every API call is scoped to, sent as `X-Tenant-Id`. Held in two places on
+ * purpose: in {@link apiSession}, which the interceptor reads, and on disk, so a seller with
+ * one association is never asked again.
  */
 export const tenantService = {
 	/** The selected tenant id, or null when none has been chosen yet. */

@@ -11,29 +11,25 @@ const ALL_METHODS: CheckoutMethod[] = [
 ];
 
 /**
- * The payment rails the current tenant has enabled (`GET /payment-method-config`), so an
- * association that only takes cash doesn't show card buttons.
+ * The rails this tenant has enabled, so a cash-only association shows no card buttons.
  *
- * **Fails open**: while loading, or if the call fails, every method is offered. A POS at a
- * bar must keep taking money through a config hiccup — and an order on a disabled rail is
- * refused server-side anyway, which is a far better outcome than a screen with no way to pay.
+ * **Fails open**: while loading, or if the call fails, every method is offered — a bar POS
+ * must keep taking money, and an order on a disabled rail is refused server-side anyway.
  */
 export function usePaymentMethods(): CheckoutMethod[] {
 	const { tenant } = useAuth();
 	const tenantId = tenant?.tenantId ?? null;
 	const [methods, setMethods] = useState<CheckoutMethod[]>(ALL_METHODS);
 
-	// Keyed on the tenant: rails are configured per association, so a switch must not leave
-	// the previous one's buttons on the payment sheet. (`paymentConfigService` caches the
-	// document per tenant, so this shares the fetch the SumUp session already makes.)
+	// Keyed on the tenant: a switch must not leave the previous association's buttons on the
+	// sheet. `paymentConfigService` caches per tenant, so this shares the SumUp session's fetch.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: deliberate refetch key
 	useEffect(() => {
 		let active = true;
 		paymentConfigService
 			.enabledMethods()
 			.then((enabled) => {
-				// An empty list means nothing is configured yet — keep the defaults rather
-				// than presenting a dead payment page.
+				// An empty list means nothing is configured yet — keep the defaults.
 				if (active && enabled.length) {
 					setMethods(enabled);
 				}

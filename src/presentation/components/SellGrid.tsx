@@ -12,14 +12,10 @@ interface Props {
 	onSelectProduct: (product: Product) => void;
 	/** Long-press a tile to open its detail sheet. */
 	onLongPressProduct?: (product: Product) => void;
-	/**
-	 * Extra bottom padding for the scroll content — the system-bar inset plus the floating
-	 * basket button's clearance — so the last product row is never hidden under either.
-	 */
+	/** System-bar inset plus the floating basket button, so the last row clears both. */
 	bottomInset?: number;
 	/** Pull down on the grid to re-read the catalogue. Omit to disable. */
 	onRefresh?: () => void;
-	/** True while {@link onRefresh} is in flight — drives the pull-to-refresh spinner. */
 	refreshing?: boolean;
 }
 
@@ -36,10 +32,8 @@ interface Row {
 const cellKey = (x: number, y: number) => `${x},${y}`;
 
 /**
- * Renders a sell grid as a fixed {@link SellGridModel.columns} × {@link SellGridModel.rows}
- * matrix of square cells. Each product sits at its own (x, y); any cell without a product is
- * left empty. Cells split the row width evenly (`flex: 1` + `aspectRatio: 1`), so tiles stay
- * square at any column count and the grid scrolls vertically when taller than the screen.
+ * A `columns` × `rows` matrix of square cells, each product at its own (x, y). Cells split
+ * the row evenly (`flex: 1` + `aspectRatio: 1`), so tiles stay square at any column count.
  */
 export function SellGrid({
 	grid,
@@ -49,7 +43,6 @@ export function SellGrid({
 	onRefresh,
 	refreshing = false,
 }: Props) {
-	// Index the placed products by cell for O(1) lookup while building the matrix.
 	const byCell = new Map<string, Product>();
 	for (const item of grid.items) {
 		byCell.set(cellKey(item.x, item.y), item.product);
@@ -74,10 +67,8 @@ export function SellGrid({
 				styles.content,
 				{ paddingBottom: APP_MARGIN + bottomInset },
 			]}
-			// Pull-to-refresh belongs on this vertical list, not on the horizontal pager
-			// around it: a scroll view only refreshes on the axis it scrolls. Each
-			// platform keeps its own native feel — iOS pulls the grid down with the
-			// bounce, Android slides a spinner over a grid that stays put.
+			// On this vertical list, not the horizontal pager around it: a scroll view only
+			// refreshes on the axis it scrolls. Each platform keeps its own native feel.
 			refreshControl={
 				onRefresh && (
 					<RefreshControl
@@ -109,12 +100,9 @@ export function SellGrid({
 }
 
 const styles = StyleSheet.create({
-	// flex:1 so the grid fills the space below the pinned title + carousel and
-	// scrolls internally, instead of growing and squashing them.
+	// flex:1 so the grid scrolls internally instead of squashing the pinned header.
 	scroll: { flex: 1 },
-	// Small paddingTop so the top row's count badges (which overhang the tile by 4px)
-	// aren't clipped at the grid's top edge. The persistent gap below the carousel is
-	// still the bar's own paddingBottom.
+	// paddingTop so the top row's count badges (a 4px overhang) aren't clipped.
 	content: { padding: APP_MARGIN, paddingTop: 8, gap: GAP },
 	row: { flexDirection: 'row', gap: GAP },
 	cell: { flex: 1, aspectRatio: 1 },

@@ -31,7 +31,6 @@ type BasketAction =
 	| { type: 'remove'; key: string }
 	| { type: 'clear' };
 
-/** Pure reducer over the basket lines — all mutations go through here. */
 function basketReducer(
 	items: BasketItem[],
 	action: BasketAction,
@@ -74,25 +73,21 @@ function basketReducer(
 		case 'remove':
 			return items.filter((i) => itemKey(i) !== action.key);
 		case 'clear':
-			// Keep the same reference when already empty so useReducer bails out (no
-			// pointless re-render of every basket consumer).
+			// Same reference when already empty, so useReducer bails out of the re-render.
 			return items.length === 0 ? items : [];
 	}
 }
 
 interface BasketContextValue {
 	items: BasketItem[];
-	/** Total number of units across all lines (drives the basket badge). */
+	/** Total units across all lines (drives the basket badge). */
 	itemCount: number;
-	/** Basket total in cents. */
 	totalCents: number;
-	/** Add one of a product (optionally a specific variant). */
 	addProduct: (product: Product, variant?: Variant | null) => void;
 	increment: (key: string) => void;
 	decrement: (key: string) => void;
 	remove: (key: string) => void;
 	clear: () => void;
-	/** Quantity of a specific line (product + variant); 0 if not in the basket. */
 	quantityOf: (productId: string, variantId?: string | null) => number;
 }
 
@@ -101,9 +96,8 @@ const BasketContext = createContext<BasketContextValue | null>(null);
 export function BasketProvider({ children }: { children: ReactNode }) {
 	const [items, dispatch] = useReducer(basketReducer, []);
 
-	// Action creators only wrap the (stable) dispatch — memoize them with no deps so their
-	// identity stays constant. Otherwise they'd change on every `items` change and needlessly
-	// re-run consumers that capture them (effects, useCallback deps).
+	// Memoized with no deps so their identity never changes — otherwise every `items` change
+	// would re-run consumers that capture them.
 	const addProduct = useCallback(
 		(product: Product, variant: Variant | null = null) =>
 			dispatch({ type: 'add', product, variant }),

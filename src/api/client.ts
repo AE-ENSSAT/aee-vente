@@ -20,9 +20,8 @@ interface RetriableConfig extends InternalAxiosRequestConfig {
 }
 
 /**
- * Endpoints that must NOT carry `X-Tenant-Id`: they are how the app discovers which
- * tenants exist in the first place. Sending a stale tenant here would 403 the very
- * calls needed to recover.
+ * Must NOT carry `X-Tenant-Id`: these are how the app discovers which tenants exist, and a
+ * stale one would 403 the very calls needed to recover.
  */
 const TENANT_FREE_PATHS = ['/me', '/me/tenants', '/tenants/join'];
 
@@ -30,31 +29,26 @@ const isTenantFree = (url: string | undefined): boolean =>
 	TENANT_FREE_PATHS.includes((url ?? '').split('?')[0]);
 
 /**
- * The axios instance every call runs on. Built here (rather than letting
- * openapi-client-axios create its own) so the auth/tenant interceptors live on it and
- * the base URL comes from .env — the OpenAPI document declares no `servers`.
+ * Built here rather than by openapi-client-axios so the interceptors live on it and the
+ * base URL comes from .env — the OpenAPI document declares no `servers`.
  */
 function createAxiosInstance(): AxiosInstance {
 	const instance = axios.create({
 		baseURL: API_BASE_URL,
 		timeout: 15_000,
-		// Identify the app by its package name + version. Left unset, iOS would send
-		// NSURLSession's default (`AEEVente/<buildNumber> CFNetwork/… Darwin/…`), which
-		// reports the build number rather than the app version.
+		// Left unset, iOS sends NSURLSession's default, which reports the build number
+		// rather than the app version.
 		headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
 	});
 
-	// Stamp credentials at send time (not at build time) so a refreshed token or a
-	// tenant switch applies to every later call with no re-wiring.
+	// Stamped at send time, so a refreshed token or a tenant switch needs no re-wiring.
 	instance.interceptors.request.use(async (config) => {
-		// Renew first when the token is about to lapse: cheaper than letting the call
-		// 401 and replaying it, and it keeps a slow payment's confirmation from landing
-		// on a dead token.
+		// Renew before it lapses: cheaper than a 401-then-replay, and it keeps a slow
+		// payment's confirmation off a dead token.
 		if (apiSession.isExpiring()) {
 			await apiSession.refresh();
-			// Renewal failed and the session was cleared with it — the request could only
-			// come back 401, so don't spend a round trip finding that out. (A refresh that
-			// merely couldn't run leaves the token in place and falls through below.)
+			// Renewal failed and cleared the session: the request could only 401. (A refresh
+			// that merely couldn't run leaves the token in place and falls through.)
 			if (!apiSession.getAccessToken()) {
 				throw new ApiError('Session expirée. Reconnectez-vous.', 401);
 			}
@@ -74,9 +68,8 @@ function createAxiosInstance(): AxiosInstance {
 		(response) => response,
 		async (error: AxiosError) => {
 			const config = error.config as RetriableConfig | undefined;
-			// A 401 means the access token expired (or was revoked). Refresh once and
-			// replay the request; the refresh itself is de-duplicated in apiSession, so a
-			// burst of parallel 401s costs a single token exchange.
+			// Refresh once and replay. The refresh is de-duplicated in apiSession, so a burst
+			// of parallel 401s costs one token exchange.
 			if (
 				error.response?.status === 401 &&
 				config &&
@@ -98,16 +91,9 @@ function createAxiosInstance(): AxiosInstance {
 }
 
 /**
- * The typed AEE Manager client: one method per `operationId` in the OpenAPI document
- * (`api.listGrids()`, `api.createOrder(null, body)`, …), with request and response types
- * generated into [openapi.d.ts](./openapi.d.ts) by
- * `bunx openapicmd typegen https://api.aee-manager.bde-enssat.fr/swagger.json`.
- *
- * Regenerate that file (and refresh [spec.json](./spec.json), which is the same document
- * bundled for the runtime) whenever the backend's contract changes.
- *
- * Built with `initSync` — the document is a local object, so there is nothing to fetch
- * and the client is usable on the first import, with no async startup step.
+ * The typed client: one method per `operationId` (`api.listGrids()`,
+ * `api.createOrder(null, body)`, …). Built with `initSync` — the document is a local
+ * object, so there is no async startup step. See CLAUDE.md to regenerate it.
  */
 export const api = new OpenAPIClientAxios({
 	definition: spec as unknown as Document,

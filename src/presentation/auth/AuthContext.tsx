@@ -13,10 +13,7 @@ import { authService } from '@/src/services/auth';
 import type { AuthUser } from '@/src/services/auth/AuthService';
 import { tenantService } from '@/src/services/tenant';
 
-/**
- * `loading` covers the start-up attempt to resume the previous session — the app must not
- * flash the login screen at a seller who is still signed in.
- */
+/** `loading` is the start-up resume — never flash the login screen at a signed-in seller. */
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 
 interface AuthContextValue {
@@ -27,23 +24,13 @@ interface AuthContextValue {
 	tenant: MyTenantDto | null;
 	/** Roles + permissions on {@link tenant}; null until one is selected. */
 	profile: MeProfileDto | null;
-	/**
-	 * The signed-in person as Keycloak describes them — a real name, which the API's
-	 * profile does not carry. Null while it loads, or if the realm could not be reached.
-	 */
+	/** Real name and email from Keycloak, which the API's profile does not carry. */
 	user: AuthUser | null;
 	/** True when the API says this user may take payments here (`permissions.canSell`). */
 	canSell: boolean;
-	/**
-	 * True when signed in but no tenant is settled on — the app must ask which one. Always
-	 * true right after a sign-in; after a restored session, only when nothing was
-	 * remembered.
-	 */
+	/** Always true after a sign-in; after a restored session, only when nothing was remembered. */
 	needsTenantChoice: boolean;
-	/**
-	 * Start the SSO round-trip. Resolves false when the user dismissed the identity
-	 * provider's page without signing in, so the caller can stay put silently.
-	 */
+	/** Resolves false when the user dismissed the IdP page, so the caller can stay put. */
 	signIn: () => Promise<boolean>;
 	signOut: () => Promise<void>;
 	selectTenant: (tenantId: string) => Promise<void>;
@@ -54,11 +41,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * Owns the signed-in session: the Keycloak token (via `authService`), which tenant the
- * user is selling for, and what the API says they're allowed to do there.
- *
- * Screens read this instead of touching `apiSession` — that holder is plumbing for the
- * client's interceptors, not app state.
+ * Owns the signed-in session: the Keycloak token, the tenant being sold for, and what the
+ * API says this user may do there. Screens read this instead of touching `apiSession`.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
 	const [status, setStatus] = useState<AuthStatus>('loading');
@@ -68,17 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<AuthUser | null>(null);
 
 	/**
-	 * Load everything that depends on the token: the user's tenants, then the profile for
-	 * whichever tenant applies.
+	 * Load what depends on the token: the user's tenants, then the profile for whichever
+	 * tenant applies. A remembered tenant counts only while the user still belongs to it.
 	 *
-	 * `preselect` separates the two ways in. Resuming a session at start-up settles on an
-	 * association by itself — the remembered one, or a lone membership, which needs no
-	 * question — so a seller mid-shift is never interrupted. A fresh sign-in passes false
-	 * and always asks: the POS is handed between sellers, so the association the previous
-	 * one worked for must not carry over silently (see `app/tenant.tsx`).
-	 *
-	 * A remembered tenant is honoured only while the user still belongs to it (they may
-	 * have been removed since).
+	 * `preselect` splits the two ways in. A session resumed at start-up settles on the
+	 * remembered tenant (or a lone membership), so a seller mid-shift is not interrupted; a
+	 * fresh sign-in passes false and always asks, because the POS changes hands.
 	 */
 	const loadSession = useCallback(async (preselect: boolean) => {
 		// Independent lookups — the realm knows the person, the API knows where they sell.
@@ -90,8 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		setUser(who);
 
 		if (!preselect) {
-			// Drop the stored tenant as well, so nothing can go out under the previous
-			// seller's `X-Tenant-Id` while this one is still choosing.
+			// Drop the stored tenant too: nothing may go out under the previous seller's id.
 			await tenantService.select(null);
 			setTenantId(null);
 			setProfile(null);
@@ -116,8 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		setStatus('signedIn');
 	}, []);
 
-	// Resume the previous session at start-up, and make an unrecoverable 401 anywhere in
-	// the app fall back to the login screen.
+	// Resume at start-up; an unrecoverable 401 anywhere falls back to the login screen.
 	useEffect(() => {
 		let active = true;
 
@@ -143,8 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			try {
 				await loadSession(true);
 			} catch {
-				// The token survived but the API is unreachable (or rejected us). Treat it
-				// as signed out rather than stranding the app on a spinner.
+				// Token survived but the API is unreachable: signed out beats a stuck spinner.
 				if (active) {
 					setStatus('signedOut');
 				}

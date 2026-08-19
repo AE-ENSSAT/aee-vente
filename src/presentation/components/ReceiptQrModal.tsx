@@ -5,11 +5,10 @@ import { Image, Modal, Pressable, StyleSheet, Text } from 'react-native';
 import { FONT } from '../theme';
 
 /**
- * Encode a string to a byte string whose char codes are its UTF-8 bytes (one char per byte).
- * qrcode-generator's default byte encoder truncates each char to `charCodeAt & 0xff`; feeding
- * it this pre-encoded string makes it emit correct UTF-8 — so the receipt's non-ASCII glyphs
- * (€, —, –, ×, accents) survive scanning instead of turning to mojibake. Done here rather than
- * via `qrcode.stringToBytesFuncs['UTF-8']` because the ESM build Metro resolves has no such map.
+ * Encode to a byte string whose char codes are the UTF-8 bytes. qrcode-generator's default
+ * encoder truncates each char to `charCodeAt & 0xff`, which turns the receipt's €, — and
+ * accents to mojibake. Done here because the ESM build Metro resolves has no
+ * `stringToBytesFuncs['UTF-8']` map.
  */
 function toUtf8ByteString(str: string): string {
 	let out = '';
@@ -46,24 +45,17 @@ interface Props {
 	onClose: () => void;
 }
 
-/** Display size (dp) of the QR in the modal. */
 const QR_DISPLAY = 240;
-/**
- * Source pixels per module in the generated GIF. Kept high so the Image *downscales* to
- * QR_DISPLAY (a large crisp source sampled down) rather than upscaling a tiny one — modules
- * stay sharp and scannable.
- */
+/** Kept high so the Image downscales a crisp source rather than upscaling a tiny one. */
 const QR_CELL = 8;
 
 /**
- * A centered modal showing the receipt as a QR code the customer can scan. The code encodes
- * the plain-text receipt itself (see {@link buildReceiptText}), so scanning works offline —
- * there is no backend to point a URL at.
+ * The receipt as a QR the customer scans. It encodes the receipt text itself, so scanning
+ * works offline — there is no backend to point a URL at.
  */
 export function ReceiptQrModal({ value, onClose }: Props) {
-	// `value` drops to null the instant "Fermer" is pressed, but the Modal still renders
-	// through its fade-out. Hold the last non-null value (adjusted during render so it's ready
-	// the frame the modal opens) so the QR fades out with the window instead of vanishing first.
+	// `value` drops to null on "Fermer" while the Modal is still fading out. Hold the last
+	// non-null one so the QR fades with the window instead of vanishing first.
 	const [shown, setShown] = useState<string | null>(value);
 	if (value !== null && value !== shown) {
 		setShown(value);
@@ -104,9 +96,8 @@ export function ReceiptQrModal({ value, onClose }: Props) {
 }
 
 /**
- * The receipt QR as a single <Image>. qrcode-generator emits a black-on-white GIF data URI
- * (pure JS — no react-native-svg / prebuild) with a built-in 4-module quiet zone. Rendering
- * one Image (vs a grid of hundreds of Views) keeps the modal open cheaply.
+ * The QR as a single <Image>: qrcode-generator emits a GIF data URI in pure JS (no
+ * react-native-svg, no prebuild), and one Image beats a grid of hundreds of Views.
  */
 function QrImage({ value }: { value: string }) {
 	const uri = useMemo(() => {
@@ -114,7 +105,7 @@ function QrImage({ value }: { value: string }) {
 		const qr = qrcode(0, 'M');
 		qr.addData(toUtf8ByteString(value));
 		qr.make();
-		// Omitting margin defaults it to QR_CELL * 4 px = a 4-module quiet zone.
+		// No margin argument → a 4-module quiet zone.
 		return qr.createDataURL(QR_CELL);
 	}, [value]);
 

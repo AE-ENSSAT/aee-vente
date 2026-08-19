@@ -13,26 +13,24 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/src/presentation/components/PrimaryButton';
 import { useSumUp } from '@/src/presentation/sumup/SumUpContext';
-import { FONT } from '@/src/presentation/theme';
+import { FONT, SCREEN_TITLE } from '@/src/presentation/theme';
 
 const IS_IOS = Platform.OS === 'ios';
 
 /**
- * Tap to Pay on iPhone information / help screen. Reached from the sell page, it is the
- * always-available merchant-education surface Apple's checklist expects outside the checkout
- * flow (req 4.3): it explains accepting contactless cards (4.5), Apple Pay / digital wallets
- * (4.6), PIN entry (4.7), and the fallback when a card can't be read (4.8). "Voir la
- * démonstration" launches Apple's own interactive education (ProximityReaderDiscovery, iOS
- * 18+, req 4.1); "Activer Tap to Pay" enables it outside a sale (req 3.6) and, once the
- * Terms & Conditions are accepted, presents that education right away (req 4.2), then invites
- * the merchant to try a first payment (req 3.9).
+ * Tap to Pay on iPhone help screen — the always-available merchant education Apple's
+ * checklist expects outside the checkout flow (req 4.3), covering contactless cards (4.5),
+ * digital wallets (4.6), PIN entry (4.7) and unreadable cards (4.8).
+ *
+ * "Voir la démonstration" launches Apple's own interactive education (iOS 18+, req 4.1);
+ * "Activer Tap to Pay" enables it outside a sale (req 3.6), then presents that education
+ * (req 4.2) and invites a first payment (req 3.9).
  */
 export default function TapToPayScreen() {
 	const router = useRouter();
 	const { activateTapToPay, presentTapToPayEducation } = useSumUp();
 	const [busy, setBusy] = useState<null | 'edu' | 'activate'>(null);
-	// True once Tap to Pay has been activated in this session — swaps the activate control
-	// for the "it's ready, try it out" panel (req 3.9).
+	// Swaps the activate control for the "it's ready, try it out" panel (req 3.9).
 	const [activated, setActivated] = useState(false);
 
 	const showDemo = async () => {
@@ -40,7 +38,7 @@ export default function TapToPayScreen() {
 		try {
 			await presentTapToPayEducation();
 		} catch {
-			// iOS < 18 (or unavailable): the written guide above already covers the steps.
+			// iOS < 18 or unavailable: the written guide above covers the steps.
 			Alert.alert(
 				'Démonstration interactive indisponible',
 				"La démonstration d'Apple nécessite iOS 18 ou une version ultérieure. Les explications ci-dessus décrivent la marche à suivre.",
@@ -56,14 +54,11 @@ export default function TapToPayScreen() {
 			const status = await activateTapToPay();
 			if (status.activated) {
 				setActivated(true);
-				// Req 4.2: once the Terms & Conditions are accepted, present Apple's
-				// merchant education right away. Best-effort — it needs iOS 18+, and the
-				// written guide above is the fallback, so a failure is silently ignored.
+				// Req 4.2: present Apple's education as soon as the T&Cs are accepted.
+				// Best-effort (iOS 18+); the written guide above is the fallback.
 				try {
 					await presentTapToPayEducation();
-				} catch {
-					// iOS < 18 or unavailable — the on-screen guide already covers it.
-				}
+				} catch {}
 			} else {
 				Alert.alert(
 					'Tap to Pay sur iPhone',
@@ -279,14 +274,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	title: {
-		flex: 1,
-		textAlign: 'center',
-		fontSize: 18,
-		fontFamily: FONT.black,
-		color: '#A91B3A',
-		letterSpacing: 0.2,
-	},
+	title: SCREEN_TITLE,
 	content: { padding: 20, gap: 14, paddingBottom: 40 },
 	intro: {
 		fontSize: 16,

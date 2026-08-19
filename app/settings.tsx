@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/src/presentation/auth/AuthContext';
 import { useBasket } from '@/src/presentation/basket/BasketContext';
-import { FONT } from '@/src/presentation/theme';
+import { FONT, SCREEN_TITLE } from '@/src/presentation/theme';
 
 /** Roles as the API names them, in the wording a seller would recognise. */
 const ROLE_LABELS: Record<string, string> = {
@@ -23,10 +23,8 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 /**
- * Account / settings screen, opened from the sell page. Shows the seller (name + picture),
- * then a menu: transaction history, the Tap to Pay on iPhone help/education page, the
- * association picker, and — last — sign out. The two rows that end the current context sit
- * together at the bottom.
+ * Account / settings screen: the seller, then history, the Tap to Pay help page, the
+ * association picker, and — last — sign out.
  */
 export default function SettingsScreen() {
 	const router = useRouter();
@@ -35,22 +33,16 @@ export default function SettingsScreen() {
 	const { profile, tenant, user, signOut } = useAuth();
 
 	const disconnect = async () => {
-		// Sign out: empty the basket and end the Keycloak session (tokens revoked and
-		// wiped from secure storage), then RESET the navigation stack to the login screen
-		// so it becomes a fresh root with nothing behind it — a swipe-back / Android back
-		// no longer returns to the app. (Plain `replace` only swaps the current screen and
-		// leaves the sell page underneath.) The transaction history is wiped on next login.
+		// RESET rather than replace, so the login screen becomes a fresh root and a back
+		// gesture can't return to the app. History is wiped on the next login.
 		clear();
 		await signOut();
-		// `name: 'index'` is the login route (app/index.tsx). Cast: expo-router types
-		// `reset` route names as `never` here since this navigator's param list is generic.
+		// Cast: expo-router types `reset` route names as `never` for a generic param list.
 		navigation.reset({ index: 0, routes: [{ name: 'index' as never }] });
 	};
 
-	// The API knows sellers only by their login handle (`aee-test`); their actual name
-	// lives in Keycloak, so prefer that. The chain degrades one step at a time — full name,
-	// the realm's own `name` claim, the handle — so the header is never blank, whichever
-	// lookup is still in flight or unreachable.
+	// The API knows sellers only by their login handle; the real name lives in Keycloak.
+	// The chain degrades a step at a time, so the header is never blank.
 	const sellerName =
 		[user?.givenName, user?.familyName].filter(Boolean).join(' ') ||
 		user?.name ||
@@ -202,14 +194,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	title: {
-		flex: 1,
-		textAlign: 'center',
-		fontSize: 18,
-		fontFamily: FONT.black,
-		color: '#A91B3A',
-		letterSpacing: 0.2,
-	},
+	title: SCREEN_TITLE,
 	content: { padding: 20, gap: 22, paddingBottom: 40 },
 	profile: {
 		flexDirection: 'row',

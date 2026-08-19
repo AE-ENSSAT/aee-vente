@@ -60,7 +60,8 @@ Package manager is **bun** — use `bun` / `bunx`, never `npm` / `npx`.
    bun install
    bunx expo install   # aligns native package versions with the SDK
    ```
-3. **Configure secrets** — copy `.env.example` → `.env` and fill in:
+3. **Configure secrets** — copy `.env.example` → `.env` and fill in (it also documents the
+   optional build-time switches: `APP_VARIANT`, `BUILD_NUMBER`):
    - `API_BASE_URL` — the AEE Manager API
    - `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID` — the realm issuing its tokens
      (not secrets: the client is public)
@@ -110,13 +111,15 @@ Two rules the OpenAPI document does not state:
 ### Keycloak client
 
 The public client (`KEYCLOAK_CLIENT_ID`, default `web`) needs *Standard flow* enabled and
-**`aeevente://auth`** registered in **both** lists — they are separate, and logout does not
-fall back to the login one:
+the app's redirect registered in **both** lists — they are separate, and logout does not
+fall back to the login one. Each build variant has its own scheme, so both belong in each
+list (`APP_VARIANT=dev` builds `aeevente-dev` so the test build can sit on the same device
+as production without the two fighting over the callback):
 
 | Field | Value |
 |---|---|
-| Valid redirect URIs | `aeevente://auth` |
-| Valid post logout redirect URIs | `aeevente://auth` (or `+` to reuse the list above) |
+| Valid redirect URIs | `aeevente://auth`, `aeevente-dev://auth` |
+| Valid post logout redirect URIs | same two (or `+` to reuse the list above) |
 
 The exact string is logged at start-up in dev. Sign-out is two-sided on purpose — the
 refresh token is revoked back-channel *and* the end-session endpoint is opened in the

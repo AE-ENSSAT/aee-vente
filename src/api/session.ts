@@ -1,22 +1,13 @@
 /**
- * The two pieces of per-request state every AEE Manager call needs: the bearer token
- * and the tenant it applies to. Kept in one tiny mutable holder that the client's
- * interceptors read on each request, so refreshing a token or switching tenant never
- * means rebuilding the axios instance.
- *
- * This module deliberately knows nothing about Keycloak. The auth service pushes tokens
- * in and registers {@link setRefreshHandler}; the client pulls them out. That keeps
- * `src/api` free of any dependency on `src/services/auth` (which depends on it).
+ * The bearer token + tenant every request needs, in one mutable holder the interceptors
+ * read — so a refresh or a tenant switch never rebuilds the axios instance. Knows nothing
+ * about Keycloak: the auth service pushes tokens in and registers {@link setRefreshHandler}.
  */
 
 /** Refreshes the access token; resolves the new one, or null when the session is over. */
 type RefreshHandler = () => Promise<string | null>;
 
-/**
- * Refresh this long before the access token actually expires, so a request never leaves
- * with a token that dies in flight (a Tap to Pay confirmation can land a minute after the
- * order was created).
- */
+/** Refresh this early, so a request never leaves with a token that dies in flight. */
 const EXPIRY_SKEW_MS = 30_000;
 
 let accessToken: string | null = null;
@@ -25,9 +16,8 @@ let expiresAt = 0;
 let tenantId: string | null = null;
 let refreshHandler: RefreshHandler | null = null;
 let onSessionExpired: (() => void) | null = null;
-// De-duplicates concurrent refreshes: if three requests 401 at once they must all wait
-// on ONE token exchange, not race three (Keycloak rotates refresh tokens, so parallel
-// exchanges would invalidate each other).
+// De-duplicates concurrent refreshes: Keycloak rotates refresh tokens, so parallel
+// exchanges would invalidate each other.
 let inFlightRefresh: Promise<string | null> | null = null;
 
 export const apiSession = {
@@ -36,11 +26,7 @@ export const apiSession = {
 		return accessToken;
 	},
 
-	/**
-	 * Adopt a token. `expiresInSeconds` comes straight from the identity provider's
-	 * token response; omit it when the lifetime is unknown, and the token is then only
-	 * replaced reactively (on a 401).
-	 */
+	/** `expiresInSeconds` comes from the IdP; omit it and the token is replaced only on a 401. */
 	setAccessToken(token: string | null, expiresInSeconds?: number): void {
 		accessToken = token;
 		expiresAt =
@@ -50,9 +36,8 @@ export const apiSession = {
 	},
 
 	/**
-	 * True when a token is held but is inside the renewal window (or already dead).
-	 * The client checks this before sending, turning a guaranteed 401-then-retry into a
-	 * single request.
+	 * Inside the renewal window, or already dead. Checked before sending, which turns a
+	 * guaranteed 401-then-retry into a single request.
 	 */
 	isExpiring(): boolean {
 		return (
@@ -63,9 +48,8 @@ export const apiSession = {
 	},
 
 	/**
-	 * The tenant every request is scoped to, sent as `X-Tenant-Id`. Null before a tenant
-	 * is picked — the tenant-agnostic endpoints (`/me`, `/me/tenants`, `/tenants/join`)
-	 * still work, the rest answer 403.
+	 * Sent as `X-Tenant-Id`. Null before one is picked: only `/me`, `/me/tenants` and
+	 * `/tenants/join` work then, the rest answer 403.
 	 */
 	getTenantId(): string | null {
 		return tenantId;

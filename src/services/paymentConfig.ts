@@ -13,9 +13,8 @@ export const checkoutMethodOf = (mean: PaymentMean): CheckoutMethod =>
 	CHECKOUT_METHODS[mean];
 
 /**
- * The SumUp key the *device* should log in with — the association's own merchant account.
- * Both card rails (`TAP_TO_PAY`, `CARD_READER`) carry the same one; null when this tenant
- * runs no SumUp rail at all (cash only), which is not an error.
+ * The association's own merchant account: both card rails carry the same key, and null
+ * (cash only) is not an error.
  */
 export const sumupApiKeyOf = (
 	config: PaymentMethodConfigDto[],
@@ -30,18 +29,14 @@ let cached: {
 } | null = null;
 
 /**
- * Which payment rails this tenant has turned on, and the SumUp key its devices should use.
- *
- * Configured per association in the back-office, so an association that only takes cash
- * never shows a card button — and the POS doesn't have to guess.
+ * Which rails this tenant takes and the SumUp key its devices log in with. Configured per
+ * association in the back-office, so a cash-only one never shows a card button.
  */
 export const paymentConfigService = {
 	/**
-	 * The tenant's rails. Disabled ones are returned too, flagged `enabled: false`.
-	 *
-	 * Cached per tenant: two unrelated callers want this document on every switch — the
-	 * payment sheet (which rails to show) and the SumUp session (which merchant to log in
-	 * as) — and they should not each cost a round-trip. A failed request is not kept.
+	 * The tenant's rails; disabled ones come back flagged `enabled: false`. Cached per
+	 * tenant because two callers want it on every switch — the payment sheet and the SumUp
+	 * session — and a failed request is not kept.
 	 */
 	list(): Promise<PaymentMethodConfigDto[]> {
 		const tenantId = apiSession.getTenantId();

@@ -26,17 +26,15 @@ async function requestBluetoothPermissions(): Promise<boolean> {
 }
 
 /**
- * {@link PaymentService} backed by the SumUp wrapper module. Logging in is shared and
- * de-duplicated: `prepare()` starts one login and every payment awaits it.
+ * {@link PaymentService} over the SumUp module. `prepare()` starts one login that every
+ * payment awaits.
  *
- * The access token belongs to the **tenant**, not to the build — each association has its
- * own SumUp merchant account (see `paymentConfigService`). The affiliate key still comes
- * from `.env`: it identifies the app rather than the merchant.
+ * The access token is the **tenant's** — each association has its own merchant account. The
+ * affiliate key still comes from `.env`: it identifies the app, not the merchant.
  */
 export class SumUpPaymentService implements PaymentService {
 	/** The tenant's key, kept so a login that failed can be retried on the next payment. */
 	private token: string | null = null;
-	/** The token the live session was opened with, and the login itself. */
 	private session: { token: string; login: Promise<unknown> } | null = null;
 
 	private ensureLoggedIn(): Promise<unknown> {
@@ -44,12 +42,10 @@ export class SumUpPaymentService implements PaymentService {
 			return this.session.login;
 		}
 		if (this.token) {
-			// A pre-login that failed (offline at start-up, say) is retried here rather
-			// than failing the sale outright.
+			// Retry a pre-login that failed (offline at start-up) rather than fail the sale.
 			return this.login(this.token);
 		}
-		// No key at all: refusing beats charging a card through whichever merchant
-		// account happened to be logged in last.
+		// Refusing beats charging through whichever account happened to be logged in last.
 		throw new Error(
 			'Aucune clé SumUp pour cette association — vérifiez sa configuration de paiement.',
 		);
@@ -60,9 +56,8 @@ export class SumUpPaymentService implements PaymentService {
 		if (this.session?.token === accessToken) {
 			return this.session.login;
 		}
-		// A different key means a different merchant account, so the previous session is
-		// ended first — otherwise the SDK would keep taking money into the association we
-		// just left. Best-effort: a failed logout must not block the new login.
+		// A different key is a different merchant account, so end the previous session first
+		// or the SDK keeps taking money into the association we just left. Best-effort.
 		const previous = this.session;
 		this.token = accessToken;
 		const login = (

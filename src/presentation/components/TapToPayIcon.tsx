@@ -7,11 +7,9 @@ interface Props {
 }
 
 /**
- * The Tap to Pay button glyph. Apple's Tap to Pay on iPhone review guidelines (req 5.5)
- * require the SF Symbol `wave.3.right.circle` / `.fill` when an icon is used on the button
- * — no other glyph (and never the Apple logo) is allowed. `expo-symbols` renders the real
- * system symbol on iOS; the `fallback` is used on Android, where the button drives SumUp's
- * Android Tap to Pay instead (Apple's symbol rule doesn't apply there).
+ * Apple's review guidelines (req 5.5) require the SF Symbol `wave.3.right.circle` on the
+ * Tap to Pay button — no other glyph, never the Apple logo. `expo-symbols` renders the real
+ * symbol on iOS; the `fallback` covers Android, where the rule doesn't apply.
  */
 export function TapToPayIcon({ color = '#ffffff', size = 22 }: Props) {
 	return (

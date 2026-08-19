@@ -32,13 +32,9 @@ interface SumUpContextValue {
 const SumUpContext = createContext<SumUpContextValue | null>(null);
 
 /**
- * Owns the SumUp session: logs in as soon as an association is selected (so payments are
- * ready) and exposes the payment actions. Wraps {@link paymentService}; holds no SumUp
- * logic.
- *
- * Keyed on the tenant, because the merchant account is the tenant's: the key comes from
- * `GET /payment-method-config`, and switching association logs the device into the other
- * account. Before a tenant is settled there is nothing to log into — and nothing to sell.
+ * Owns the SumUp session: logs in once an association is selected, and exposes the payment
+ * actions. Keyed on the tenant, because the merchant account is the tenant's — switching
+ * association logs the device into the other account.
  */
 export function SumUpProvider({ children }: { children: ReactNode }) {
 	const { tenant } = useAuth();
@@ -55,8 +51,7 @@ export function SumUpProvider({ children }: { children: ReactNode }) {
 			.list()
 			.then((config) => {
 				const key = sumupApiKeyOf(config);
-				// A cash-only association has no SumUp account: nothing to log into, and
-				// the payment sheet won't offer a card rail either.
+				// A cash-only association has no SumUp account, and no card rail to offer.
 				return key ? paymentService.prepare(key) : undefined;
 			})
 			.catch(() => undefined) // a failed pre-login is retried on first pay()

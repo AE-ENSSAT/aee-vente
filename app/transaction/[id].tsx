@@ -29,7 +29,7 @@ import {
 	sendReceiptByEmail,
 	sendReceiptBySms,
 } from '@/src/presentation/receipt';
-import { FONT } from '@/src/presentation/theme';
+import { FONT, SCREEN_TITLE } from '@/src/presentation/theme';
 
 /** "04/07/2026 · 14:32" */
 function formatDateLong(timestamp: number): string {
@@ -38,15 +38,11 @@ function formatDateLong(timestamp: number): string {
 	return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/**
- * Detail of a single sale, opened by tapping a row in the transaction history. Loads the sale
- * from the local store ({@link transactionStore}) by its id.
- */
+/** Detail of a single sale, read from {@link transactionStore} by id. */
 export default function TransactionDetailScreen() {
 	const router = useRouter();
-	// `origin: 'receipt'` when reached straight after a sale (the receipt prompt) rather than
-	// from the history list — the header then closes (X → back to the grid) instead of a back
-	// chevron.
+	// `origin: 'receipt'` when reached straight after a sale: the header then closes (X)
+	// instead of offering a back chevron.
 	const { id, origin } = useLocalSearchParams<{
 		id: string;
 		origin?: string;
@@ -72,10 +68,9 @@ export default function TransactionDetailScreen() {
 	}, [id]);
 
 	return (
-		// Own SafeAreaProvider so the top/bottom insets are correct even when this screen is
-		// presented as a full-screen native modal (the receipt flow) — that container doesn't
-		// inherit the root provider, so without this the header slides under the notch.
-		// Seeded with initialWindowMetrics so the inset is right on the first frame (no flash).
+		// Own SafeAreaProvider: presented as a full-screen native modal, this container does
+		// not inherit the root one, and the header would slide under the notch. Seeded with
+		// initialWindowMetrics so the inset is right on the first frame.
 		<SafeAreaProvider
 			initialMetrics={initialWindowMetrics}
 			style={styles.provider}
@@ -366,14 +361,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	title: {
-		flex: 1,
-		textAlign: 'center',
-		fontSize: 18,
-		fontFamily: FONT.black,
-		color: '#A91B3A',
-		letterSpacing: 0.2,
-	},
+	title: SCREEN_TITLE,
 	center: {
 		flex: 1,
 		alignItems: 'center',

@@ -12,48 +12,36 @@ import { orderService } from '@/src/services/orders';
 import type { CheckoutMethod } from '@/src/services/PaymentService';
 
 /**
- * A fresh key for one checkout attempt, so a retried request can't bill twice. Each
- * attempt gets its own: a refused card order is already cancelled server-side, and the
- * API expects the retry to arrive under a new key.
+ * A fresh key per attempt: a refused card order is already cancelled server-side, and the
+ * API expects the retry under a new one.
  */
 function newIdempotencyKey(): string {
 	return `pos-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
 
 /**
- * Application use-case: sell the current basket.
+ * Use-case: sell the current basket.
  *
- * The sale is opened on the server *before* any money is taken, which is what makes the
- * two sides reconcilable:
+ * The sale is opened on the server *before* any money is taken, which is what makes the two
+ * sides reconcilable: `POST /orders` (cash comes back `completed`, a card mean `pending`),
+ * then the card is charged for the **server's** total — the backend prices the cart — and
+ * the outcome reported with `/confirm` (carrying SumUp's transaction id) or `/decline`.
  *
- * 1. `POST /orders` — cash comes back `completed`; a card mean comes back `pending`;
- * 2. the device charges the card (SumUp);
- * 3. `POST /orders/{id}/confirm` with SumUp's transaction id, or `/decline` when refused.
- *
- * The card is charged the **server's** total, not the basket's: the backend prices the
- * cart itself (member rates, option deltas, catalogue edits since the grid was loaded),
- * and what is charged must be what gets recorded.
- *
- * Each attempt is also mirrored into the local {@link transactionStore}, which holds the
- * product names the API's sale items don't carry — that is what the receipt and the
- * history screen read. Declined attempts are stored too, so a confidential receipt stays
- * reachable for them (Apple Tap to Pay req 5.10).
- *
- * `onSuccess` fires on a successful sale with the id to open a receipt for, or `null` when
- * nothing could be stored locally (celebrate anyway — the money was taken).
+ * Attempts are mirrored into {@link transactionStore}, which holds the product names the
+ * API's sale items don't carry — declined ones too, so a receipt stays reachable for them
+ * (Apple req 5.10). `onSuccess` gets the id to open a receipt for, or null when nothing
+ * could be stored locally: celebrate anyway, the money was taken.
  */
 export function useCheckout(
 	onSuccess?: (transactionId: string | null) => void,
 ) {
 	const { totalCents, items } = useBasket();
 	const { pay } = useSumUp();
-	// The method currently being charged, or null when idle. Tracked (rather than a bare
-	// boolean) so the UI can spin only the button that was pressed — the others must not look
-	// disabled (Apple Tap to Pay req 5.3). `busy` is derived from it.
+	// Which method is charging, so the UI can spin only the pressed button — the others must
+	// not look disabled (Apple Tap to Pay req 5.3).
 	const [pendingMethod, setPendingMethod] = useState<CheckoutMethod | null>(
 		null,
 	);
-	// Only failures surface in the UI (success is celebrated via onSuccess).
 	const [error, setError] = useState<string | null>(null);
 
 	const checkout = useCallback(
@@ -64,8 +52,7 @@ export function useCheckout(
 			setPendingMethod(method);
 			setError(null);
 
-			// Snapshot the sale locally under the server's id, so the receipt can show the
-			// product names. Best-effort: a storage failure must never break the payment.
+			// Snapshot locally for the receipt's product names. Best-effort: never fail a payment.
 			const persist = async (
 				id: string,
 				amountCents: number,
@@ -90,10 +77,8 @@ export function useCheckout(
 				}
 			};
 
-			// Req 1.4: on an iPhone too old for Tap to Pay, tell the merchant to update
-			// iOS instead of surfacing a generic failure. Applied only when a Tap to Pay
-			// attempt on such a device fails, so newer iPhones and the Bluetooth reader
-			// are never affected.
+			// Req 1.4: on an iPhone too old for Tap to Pay, say "update iOS" rather than
+			// surface a generic failure. Only for a failed Tap to Pay attempt on such a device.
 			const tooOldForTapToPay =
 				method === 'tapToPay' && isTapToPayIosTooOld();
 			const fail = (message: string) => {
@@ -123,8 +108,7 @@ export function useCheckout(
 				const result = await pay(method, order.totalCents);
 
 				if (!result.success) {
-					// Refused: cancel the pending order rather than let it sit until it
-					// expires. Its own failure isn't worth reporting over the refusal.
+					// Refused: cancel the pending order rather than leave it to expire.
 					await orderService
 						.declineOrder(order.id)
 						.catch(() => undefined);
