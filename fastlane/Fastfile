@@ -121,14 +121,18 @@ platform :ios do
 
 		# Export twice from the one archive: xcodebuild re-signs at export time, so the
 		# ad-hoc build is the same compiled binary rather than a second ~20-minute build.
-		# workspace/scheme are repeated on the exports because gym builds its config before
-		# honouring skip_build_archive — and its project detection globs the *working
-		# directory*, where there is no .xcworkspace (it lives in ios/). Absent, it prompts
-		# for a path and crashes CI as non-interactive.
+		# Two options on both exports are load-bearing:
+		#   workspace/scheme — gym builds its config before honouring skip_build_archive, and
+		#     its project detection globs the *working directory*, where there is no
+		#     .xcworkspace (it lives in ios/). Absent, it prompts and crashes CI.
+		#   skip_profile_detection — otherwise gym overwrites export_options with a mapping it
+		#     detects itself, and with two installed profiles for this one bundle id it picks
+		#     the last sigh wrote (ad-hoc), which the App Store export then rejects.
 		app_store_ipa = build_app(
 			workspace: workspace,
 			scheme: scheme,
 			skip_build_archive: true,
+			skip_profile_detection: true,
 			archive_path: archive_path,
 			export_method: 'app-store',
 			export_team_id: ENV.fetch('IOS_TEAM_ID'),
@@ -144,6 +148,7 @@ platform :ios do
 			workspace: workspace,
 			scheme: scheme,
 			skip_build_archive: true,
+			skip_profile_detection: true,
 			archive_path: archive_path,
 			export_method: 'ad-hoc',
 			export_team_id: ENV.fetch('IOS_TEAM_ID'),
