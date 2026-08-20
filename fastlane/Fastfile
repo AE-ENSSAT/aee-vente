@@ -104,9 +104,11 @@ platform :ios do
 		# Tap to Pay entitlement) is picked up instead of reusing a stale profile.
 		sigh(force: true, app_identifier: bundle_id, team_id: ENV['IOS_TEAM_ID'], api_key: api_key)
 		app_store_profile = lane_context[SharedValues::SIGH_NAME]
+		app_store_profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
 
 		sigh(adhoc: true, force: true, app_identifier: bundle_id, team_id: ENV['IOS_TEAM_ID'], api_key: api_key)
 		adhoc_profile = lane_context[SharedValues::SIGH_NAME]
+		adhoc_profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
 
 		archive_path = File.join(temp, 'aee-vente.xcarchive')
 
@@ -121,13 +123,16 @@ platform :ios do
 
 		# Export twice from the one archive: xcodebuild re-signs at export time, so the
 		# ad-hoc build is the same compiled binary rather than a second ~20-minute build.
-		# Two options on both exports are load-bearing:
+		# Three things are load-bearing on the exports:
+		#   SIGH_PROFILE_PATHS — build_app rebuilds export_options[:provisioningProfiles] from
+		#     every profile sigh recorded, keyed by bundle id. Both profiles here share one
+		#     bundle id, so the last written silently wins and the explicit mapping below is
+		#     overwritten. Narrowing the context to one profile is what makes it stick.
 		#   workspace/scheme — gym builds its config before honouring skip_build_archive, and
 		#     its project detection globs the *working directory*, where there is no
 		#     .xcworkspace (it lives in ios/). Absent, it prompts and crashes CI.
-		#   skip_profile_detection — otherwise gym overwrites export_options with a mapping it
-		#     detects itself, and with two installed profiles for this one bundle id it picks
-		#     the last sigh wrote (ad-hoc), which the App Store export then rejects.
+		#   skip_profile_detection — stops gym re-merging a mapping off the Xcode project.
+		lane_context[SharedValues::SIGH_PROFILE_PATHS] = [app_store_profile_path]
 		app_store_ipa = build_app(
 			workspace: workspace,
 			scheme: scheme,
@@ -144,6 +149,7 @@ platform :ios do
 			output_name: 'aee-vente-appstore.ipa',
 		)
 
+		lane_context[SharedValues::SIGH_PROFILE_PATHS] = [adhoc_profile_path]
 		adhoc_ipa = build_app(
 			workspace: workspace,
 			scheme: scheme,
