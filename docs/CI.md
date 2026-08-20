@@ -39,7 +39,7 @@ It runs on **free** standard runners — `ubuntu-latest` (Android) and `macos-15
 are free and unlimited on **public** repos, so the whole pipeline costs nothing. The repo
 must be **public** and the SumUp submodule must be **public** (no CI token is configured).
 
-Nothing runs until the secrets below are set. Secrets are **not** exposed to pull requests
+Nothing runs until the environments below are populated. Secrets are **not** exposed to pull requests
 from forks, so keeping them here is safe for a public repo — the workflow only builds on
 direct pushes to `develop` / `main`.
 
@@ -69,15 +69,27 @@ pipeline). A keystore isn't tied to a package name, so each just needs to be **s
 
 ```bash
 # dev (Firebase) — needed now
+mkdir -p ~/Documents/AEE/environnements/develop
+cd ~/Documents/AEE/environnements/develop
 keytool -genkeypair -v -keystore aee-dev.jks -alias aee-dev \
-  -keyalg RSA -keysize 2048 -validity 10000
-base64 -i aee-dev.jks | pbcopy    # → ANDROID_KEYSTORE_BASE64_DEV
+  -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12
+base64 -i aee-dev.jks | pbcopy    # → develop env: ANDROID_KEYSTORE_BASE64
+#   ANDROID_KEYSTORE_PASSWORD = the store password you just typed
+#   ANDROID_KEY_ALIAS         = aee-dev
+#   ANDROID_KEY_PASSWORD      = same as the store password (PKCS12 uses one)
 
 # prod (Play) — only needed once you push to main / wire Play
+mkdir -p ~/Documents/AEE/environnements/production
+cd ~/Documents/AEE/environnements/production
 keytool -genkeypair -v -keystore aee-prod.jks -alias aee-prod \
-  -keyalg RSA -keysize 2048 -validity 10000
-base64 -i aee-prod.jks | pbcopy   # → ANDROID_KEYSTORE_BASE64_PROD
+  -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12
+base64 -i aee-prod.jks | pbcopy   # → production env: ANDROID_KEYSTORE_BASE64
 ```
+
+> Regenerating the **dev** keystore changes the app signature: every tester (and your own
+> phone) must uninstall `bzh.aee.vente.dev` before the next Firebase build will install.
+> Never regenerate the **prod** one if it is already registered with Play App Signing —
+> that needs an upload-key reset request to Google.
 
 > Keep both `.jks` safe. For Play, this prod key is the **upload key** you register in the
 > Play Console (Google holds the real app-signing key). Losing the **dev** key just means
@@ -90,26 +102,67 @@ provisioning profile on every build via an ASC API key, so you never create, exp
 refresh a `.mobileprovision` yourself. You provide the cert and the API key.
 
 `develop` uses **development signing** (the Tap to Pay entitlement is only valid for
-development-type profiles on this account), so the dev cert is an **Apple Development** cert:
+development-type profiles on this account), so the dev cert is an **Apple Development** one.
 
-1. Create an **Apple Development** certificate (reuse your existing CSR), install it, and
-   export it from Keychain Access (**login → My Certificates**) as a `.p12`.
-   → `IOS_CERT_BASE64_DEV` / `IOS_CERT_PASSWORD_DEV`.
-2. Register the App ID **`bzh.aee.vente.dev`** and enable **Tap to Pay on iPhone**
-   (the `proximity-reader` entitlement) on it. No profile to make — `sigh` creates/refreshes it.
-3. Create an **App Store Connect API key** (Users and Access → Integrations → App Store
-   Connect API) with the **App Manager** role. Download the `.p8` **once**.
-4. Note your **Team ID**.
+Do the whole thing with `openssl` — no Keychain, and the private key stays a file you can
+back up. Keep everything for one environment in a single folder:
 
 ```bash
-base64 -i dev_cert.p12        | pbcopy   # → IOS_CERT_BASE64_DEV
-base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy # → ASC_API_KEY_P8
-# key id (ASC_KEY_ID) and issuer id (ASC_ISSUER_ID) are shown next to the key
+mkdir -p ~/Documents/AEE/environnements/develop
+cd ~/Documents/AEE/environnements/develop
+
+# 1. private key + CSR. Apple DISCARDS this subject (it re-issues CN/O/OU from the Apple ID
+#    and team), so the value is cosmetic — only the public key matters.
+openssl req -new -newkey rsa:2048 -nodes \
+  -keyout ios-dev.key -out ios-dev.csr -subj "/CN=AEE Vente CI"
 ```
 
-> For `main` → App Store later you'll add an **Apple Distribution** cert as
-> `IOS_CERT_BASE64_PROD` / `IOS_CERT_PASSWORD_PROD`. The `ASC_*` key and `IOS_TEAM_ID` are
-> shared across both.
+2. [developer.apple.com → Certificates](https://developer.apple.com/account/resources/certificates)
+   — check the **team selector** says *Association des élèves de l'ENSSAT* — **+** →
+   **Apple Development** (under Software; *not* the legacy "iOS App Development", because
+   the Fastfile matches `CODE_SIGN_IDENTITY="Apple Development"`) → upload `ios-dev.csr` →
+   download `development.cer`.
+
+```bash
+# 3. verify BEFORE building the .p12 — a wrong pair only fails later, inside a CI build
+openssl x509 -in development.cer -inform DER -noout -pubkey | openssl md5
+openssl pkey  -in ios-dev.key -pubout | openssl md5      # the two hashes must be identical
+openssl x509 -in development.cer -inform DER -noout -subject -enddate   # expect OU=CG7527KR3Y
+
+# 4. build the .p12 (prompts for the export password → IOS_CERT_PASSWORD)
+openssl x509 -in development.cer -inform DER -out development.pem
+openssl pkcs12 -export -inkey ios-dev.key -in development.pem \
+  -out ios-dev.p12 -name "Apple Development"
+
+# 5. the secret
+base64 -i ios-dev.p12 | pbcopy           # → develop env: IOS_CERT_BASE64
+```
+
+To sign locally as well, double-click `ios-dev.p12` and import it into the **login**
+keychain (not iCloud, not System — `codesign` only looks in login).
+
+Then, once per team:
+
+1. Register the App ID **`bzh.aee.vente.dev`** and enable **Tap to Pay on iPhone**
+   (the `proximity-reader` entitlement) on it. No profile to make — `sigh` creates/refreshes it.
+2. Create an **App Store Connect API key** (Users and Access → **Integrations** → App Store
+   Connect API → **Team Keys**) with the **App Manager** role — Developer cannot manage
+   profiles. Download the `.p8` **once**; it is never downloadable again.
+
+```bash
+base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy # → ASC_API_KEY_P8
+# ASC_KEY_ID is the KEY ID column; ASC_ISSUER_ID is the UUID above the table
+```
+
+> Apple caps **Apple Development** certificates at 2 per member per team. If **+** won't
+> offer the type, revoke an old one first. Certificates are per *person*: creating them from
+> a shared association Apple ID (e.g. `informatique@bde-enssat.fr`, invited as Admin) keeps
+> CI working after a student leaves, and gives that account its own quota.
+
+
+> For `main` → App Store later, put an **Apple Distribution** cert in the `production`
+> environment under the same `IOS_CERT_BASE64` / `IOS_CERT_PASSWORD` names. The `ASC_*` key
+> and `IOS_TEAM_ID` stay at repository level.
 
 > **Auto-UDID, hands-off**: a tester taps the Firebase invite on their iPhone and installs a
 > small profile — Firebase captures their UDID. Give **Firebase the *same* ASC API key**
@@ -119,44 +172,113 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy # → ASC_API_KEY_P8
 
 ---
 
-## Secrets & variables
+> **Where to keep the generated files.** One folder per environment
+> (`~/Documents/AEE/environnements/develop`, `…/production`) holding the keystore, the
+> `.key`/`.csr`/`.cer`/`.p12` and the passwords. GitHub secrets are **write-only** — you can
+> never read a value back — so this folder is the only copy. Store it in the association's
+> password manager, not loose in `~/Documents` next to a plaintext `passwords.txt`.
 
-Add under **Settings → Secrets and variables → Actions**.
+## Environments, secrets & variables
 
-### Repository secrets
+CI runs under a **GitHub environment** picked by branch — both jobs declare:
 
-| Secret | What it is |
-|---|---|
-| `SUMUP_AFFILIATE_KEY` | SumUp affiliate key (`sup_afk_…`) — baked into the app at build time |
-| `SUMUP_ACCESS_TOKEN` | SumUp access token (`sup_sk_…`) |
-| `SUMUP_MAVEN_USER` | SumUp private Maven username (Android build) |
-| `SUMUP_MAVEN_PASSWORD` | SumUp private Maven password (Android build) |
-| `FIREBASE_SERVICE_ACCOUNT` | Full JSON of the service-account key from step 1.4 |
-| `FIREBASE_APP_ID_ANDROID` | Firebase App ID for the **`.dev`** Android app |
-| `FIREBASE_APP_ID_IOS` | Firebase App ID for the **`.dev`** iOS app |
-| `ANDROID_KEYSTORE_BASE64_DEV` | base64 of the **dev** keystore |
-| `ANDROID_KEYSTORE_PASSWORD_DEV` | dev keystore (store) password |
-| `ANDROID_KEY_ALIAS_DEV` | dev key alias (e.g. `aee-dev`) |
-| `ANDROID_KEY_PASSWORD_DEV` | dev key password |
-| `IOS_CERT_BASE64_DEV` | base64 of the `.p12` **Apple Development** certificate |
-| `IOS_CERT_PASSWORD_DEV` | password set when exporting that `.p12` |
-| `IOS_TEAM_ID` | Apple Developer Team ID (10 chars) |
-| `ASC_KEY_ID` | App Store Connect API key id |
-| `ASC_ISSUER_ID` | App Store Connect API issuer id |
-| `ASC_API_KEY_P8` | base64 of the ASC API `.p8` key |
+```yaml
+environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+```
 
-Needed **only when you push to `main`** (Play upload key — see [stores](#later--store-releases-main-branch)):
-`ANDROID_KEYSTORE_BASE64_PROD`, `ANDROID_KEYSTORE_PASSWORD_PROD`, `ANDROID_KEY_ALIAS_PROD`,
-`ANDROID_KEY_PASSWORD_PROD`. (Until set, an Android build on `main` fails at signing.)
+| Branch | Environment | Signs with | Ships to |
+|---|---|---|---|
+| `develop` | `develop` | dev keystore / Apple **Development** cert | Firebase App Distribution |
+| `main` | `production` | Play upload key / Apple **Distribution** cert | Play + App Store (stubbed) |
 
-`FIREBASE_APP_ID_*` are not sensitive and may be stored as **repository variables**
-instead of secrets if you prefer.
+Each environment holds its own copy of the same secret **names** — no `_DEV`/`_PROD`
+suffixes and no branch ternaries in the workflow. An environment secret overrides a
+repository secret of the same name, so only what actually differs is duplicated.
 
-### Optional repository variable
+> **Order matters.** Create the environments and their secrets *before* pushing a workflow
+> that references them, or the next build fails on empty values.
 
-| Variable | Default | What it is |
+### 1. Create the two environments
+
+**Settings → Environments → New environment** → `develop`; repeat for `production`.
+The names must match the workflow expression exactly — GitHub silently creates an empty,
+unprotected environment for a name it doesn't recognise.
+
+In each: **Deployment branches and tags → Selected branches and tags**, and add the single
+branch allowed to use it (`develop` / `main`). This is the part that *enforces* the split —
+a run on `develop` then cannot read production signing keys even if the workflow asks for
+them. Optionally add **Required reviewers** on `production` so a store release waits for a
+human.
+
+### 2. Repository secrets — shared, identical in both
+
+**Settings → Secrets and variables → Actions → Repository secrets**
+
+| Secret | What it is | Where it comes from |
 |---|---|---|
-| `FIREBASE_TESTER_GROUPS` | `testers` | Comma-separated Firebase tester group alias(es) |
+| `SUMUP_MAVEN_USER` | SumUp private Maven username | SumUp integration team (`integration@sumup.com`) |
+| `SUMUP_MAVEN_PASSWORD` | SumUp private Maven password | same |
+| `IOS_TEAM_ID` | Apple Developer Team ID (10 chars) | Apple Developer → Membership details |
+| `ASC_KEY_ID` | App Store Connect API key id | shown next to the key (setup step 3) |
+| `ASC_ISSUER_ID` | ASC API issuer id | top of the same page |
+| `ASC_API_KEY_P8` | base64 of the ASC `.p8` | `base64 -i AuthKey_XXXXXXXXXX.p8 \| pbcopy` |
+| `FIREBASE_SERVICE_ACCOUNT` | full service-account JSON | Firebase → Project settings → Service accounts (step 1.4) |
+
+> If SumUp issued the Maven credentials per account rather than per organisation, move them
+> into the environments alongside `SUMUP_AFFILIATE_KEY`.
+
+### 3. `develop` environment (branch `develop`)
+
+**Secrets** — these are today's `*_DEV` repository secrets, minus the suffix:
+
+| Secret | What it is | Where it comes from |
+|---|---|---|
+| `SUMUP_AFFILIATE_KEY` | affiliate key of the **test** SumUp app (`sup_afk_…`) | SumUp Dashboard → Developers, test account |
+| `ANDROID_KEYSTORE_BASE64` | base64 of the **dev** keystore | `base64 -i aee-dev.jks \| pbcopy` (setup step 2) |
+| `ANDROID_KEYSTORE_PASSWORD` | dev store password | chosen at `keytool -genkeypair` |
+| `ANDROID_KEY_ALIAS` | dev key alias (e.g. `aee-dev`) | the `-alias` you passed |
+| `ANDROID_KEY_PASSWORD` | dev key password | chosen at `keytool` |
+| `IOS_CERT_BASE64` | base64 `.p12` of an **Apple Development** cert | Keychain → **My Certificates** → export (setup step 3) |
+| `IOS_CERT_PASSWORD` | password set during that export | you chose it |
+| `FIREBASE_APP_ID_ANDROID` | Firebase App ID, package `bzh.aee.vente.dev` | Firebase → Project settings → Your apps |
+| `FIREBASE_APP_ID_IOS` | Firebase App ID, bundle `bzh.aee.vente.dev` | same page |
+
+**Variables** — `app.config.js` refuses to build without the first four:
+
+| Variable | Value |
+|---|---|
+| `API_BASE_URL` | `https://api.aee-manager.bde-enssat.fr` |
+| `KEYCLOAK_URL` | `https://auth.aee-manager.bde-enssat.fr` |
+| `KEYCLOAK_REALM` | `app` |
+| `KEYCLOAK_CLIENT_ID` | `web` |
+| `FIREBASE_TESTER_GROUPS` | `testers` (tester group alias) |
+
+### 4. `production` environment (branch `main`)
+
+**Variables**: the same five — identical values today, since both point at one backend.
+This is where a staging URL would diverge later.
+
+**Secrets**:
+
+| Secret | What it is | Needed |
+|---|---|---|
+| `SUMUP_AFFILIATE_KEY` | affiliate key of the **live** SumUp app | now — every `main` build reads it |
+| `ANDROID_KEYSTORE_BASE64` + `_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | the **Play upload key** (a different keystore from dev) | now — `Decode upload keystore` runs on `main` too |
+| `IOS_CERT_BASE64` / `IOS_CERT_PASSWORD` | **Apple Distribution** `.p12` | when the App Store step stops being a stub |
+| `FIREBASE_APP_ID_*` | only if you ever distribute production builds via Firebase | not now |
+
+`ASC_*`, `IOS_TEAM_ID` and the Maven credentials are inherited from the repository level.
+
+### Two things that catch people out
+
+- **GitHub secrets are write-only.** You cannot copy `ANDROID_KEYSTORE_BASE64_DEV`'s value
+  out to paste into the environment — regenerate each from its source (the `.jks`, the
+  `.p12`, the `.p8`, your password manager).
+- **Delete `SUMUP_ACCESS_TOKEN`.** The SumUp login token is now the tenant's own merchant
+  key, served per association by `GET /payment-method-config`; nothing bundles it any more.
+
+Once both environments are populated, the old `*_DEV` / `*_PROD` repository secrets can be
+deleted.
 
 ---
 
@@ -170,7 +292,7 @@ Play` / `Publish to App Store Connect` steps in the workflow.
 
 | Secret | What it is |
 |---|---|
-| `ANDROID_KEYSTORE_BASE64_PROD` (+ `_PASSWORD_PROD`, `ALIAS_PROD`, `KEY_PASSWORD_PROD`) | the prod upload key (from setup step 2) |
+| `ANDROID_KEYSTORE_BASE64` (+ `_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) in the `production` environment | the prod upload key (from setup step 2) |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT` | JSON key for a Play Console service account with release permissions |
 
 Then swap the stub for e.g. `r0adkll/upload-google-play` pointing at
@@ -179,8 +301,8 @@ created in the Play Console and the **first** AAB uploaded manually.
 
 **App Store** (iOS → TestFlight / App Store):
 
-Add an **Apple Distribution** cert as `IOS_CERT_BASE64_PROD` / `IOS_CERT_PASSWORD_PROD`;
-reuse `IOS_TEAM_ID` and the **same** `ASC_*` API key.
+Add an **Apple Distribution** cert to the `production` environment as `IOS_CERT_BASE64` /
+`IOS_CERT_PASSWORD`; reuse `IOS_TEAM_ID` and the **same** `ASC_*` API key.
 Add a fastlane `release` lane mirroring `adhoc` but with `sigh(adhoc: false)` (an App Store
 profile) and `build_app(export_method: "app-store")`, then `upload_to_testflight(api_key:
 api_key)`. Register the `bzh.aee.vente` App ID (with the entitlement) first.
@@ -213,7 +335,7 @@ api_key)`. Register the `bzh.aee.vente` App ID (with the entitlement) first.
 
 - **iOS `sigh` can't create the profile** — the App ID `bzh.aee.vente.dev` isn't registered
   (with the `proximity-reader` entitlement), or the ASC API key lacks the **App Manager** role.
-- **iOS build fails signing / cert not found** — `IOS_CERT_BASE64_DEV`/`_PASSWORD_DEV` wrong,
+- **iOS build fails signing / cert not found** — the environment's `IOS_CERT_BASE64`/`IOS_CERT_PASSWORD` wrong,
   or the `.p12` holds a Distribution cert instead of an **Apple Development** cert (develop
   uses development signing), or the cert was revoked.
 - **App installs but won't open (iOS)** — the tester's device wasn't registered before the

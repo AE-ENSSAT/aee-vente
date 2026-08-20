@@ -21,12 +21,22 @@ concurrency:
 jobs:
     android:
         runs-on: ubuntu-latest
+        # develop → the `development` environment, main → `production`. Each holds its own
+        # copy of the signing/SumUp secrets under the SAME names, and GitHub refuses a run
+        # whose branch isn't allowed by that environment's deployment-branch policy.
+        environment: ${{ github.ref_name == 'main' && 'production' || 'develop' }}
         env:
             SUMUP_AFFILIATE_KEY: ${{ secrets.SUMUP_AFFILIATE_KEY }}
-            SUMUP_ACCESS_TOKEN: ${{ secrets.SUMUP_ACCESS_TOKEN }}
             SUMUP_MAVEN_USER: ${{ secrets.SUMUP_MAVEN_USER }}
             SUMUP_MAVEN_PASSWORD: ${{ secrets.SUMUP_MAVEN_PASSWORD }}
             BUILD_NUMBER: ${{ github.run_number }}
+            # Backend coordinates. Not secrets (the Keycloak client is public), but the
+            # app.config.js `extra` has no defaults — absent, a build ships with an empty
+            # base URL and crashes the moment the seller taps "Se connecter".
+            API_BASE_URL: ${{ vars.API_BASE_URL }}
+            KEYCLOAK_URL: ${{ vars.KEYCLOAK_URL }}
+            KEYCLOAK_REALM: ${{ vars.KEYCLOAK_REALM }}
+            KEYCLOAK_CLIENT_ID: ${{ vars.KEYCLOAK_CLIENT_ID }}
             # Pin the NDK to one PREINSTALLED on the runner image (27.3.13750724 — an r27
             # patch bump from RN 0.81's default 27.1, fully compatible). This makes the
             # Gradle build reuse the on-image NDK instead of downloading + caching a ~2.6 GB
@@ -35,14 +45,14 @@ jobs:
             ANDROID_NDK_VERSION: 27.3.13750724
             # develop → `.dev` app identity (bzh.aee.vente.dev); main → production id.
             APP_VARIANT: ${{ github.ref_name == 'develop' && 'dev' || '' }}
-            # Split keystores: the DEV key signs Firebase test builds; the PROD key is the
-            # Play upload key and stays out of the (more frequently run) develop pipeline.
-            ANDROID_KEYSTORE_BASE64: ${{ github.ref_name == 'develop' && secrets.ANDROID_KEYSTORE_BASE64_DEV || secrets.ANDROID_KEYSTORE_BASE64_PROD }}
+            # Each environment holds its own keystore: development signs Firebase test
+            # builds, production holds the Play upload key.
+            ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
             # Consumed by plugin/withAndroidSigning.js via Gradle properties.
             ORG_GRADLE_PROJECT_AEE_UPLOAD_STORE_FILE: upload.keystore
-            ORG_GRADLE_PROJECT_AEE_UPLOAD_STORE_PASSWORD: ${{ github.ref_name == 'develop' && secrets.ANDROID_KEYSTORE_PASSWORD_DEV || secrets.ANDROID_KEYSTORE_PASSWORD_PROD }}
-            ORG_GRADLE_PROJECT_AEE_UPLOAD_KEY_ALIAS: ${{ github.ref_name == 'develop' && secrets.ANDROID_KEY_ALIAS_DEV || secrets.ANDROID_KEY_ALIAS_PROD }}
-            ORG_GRADLE_PROJECT_AEE_UPLOAD_KEY_PASSWORD: ${{ github.ref_name == 'develop' && secrets.ANDROID_KEY_PASSWORD_DEV || secrets.ANDROID_KEY_PASSWORD_PROD }}
+            ORG_GRADLE_PROJECT_AEE_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+            ORG_GRADLE_PROJECT_AEE_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+            ORG_GRADLE_PROJECT_AEE_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -137,11 +147,18 @@ jobs:
         # C++/Swift interop (SWIFT_RETURNS_RETAINED on a constructor). macos-26 carries
         # 26.6, matching local dev, so CI and a developer's machine agree.
         runs-on: macos-26
+        environment: ${{ github.ref_name == 'main' && 'production' || 'develop' }}
         env:
             SUMUP_AFFILIATE_KEY: ${{ secrets.SUMUP_AFFILIATE_KEY }}
-            SUMUP_ACCESS_TOKEN: ${{ secrets.SUMUP_ACCESS_TOKEN }}
             BUILD_NUMBER: ${{ github.run_number }}
             IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+            # Backend coordinates. Not secrets (the Keycloak client is public), but the
+            # app.config.js `extra` has no defaults — absent, a build ships with an empty
+            # base URL and crashes the moment the seller taps "Se connecter".
+            API_BASE_URL: ${{ vars.API_BASE_URL }}
+            KEYCLOAK_URL: ${{ vars.KEYCLOAK_URL }}
+            KEYCLOAK_REALM: ${{ vars.KEYCLOAK_REALM }}
+            KEYCLOAK_CLIENT_ID: ${{ vars.KEYCLOAK_CLIENT_ID }}
             # develop → `.dev` app identity; main → production id. Must match the
             # bundle id that app.config.js emits for the same APP_VARIANT.
             APP_VARIANT: ${{ github.ref_name == 'develop' && 'dev' || '' }}
@@ -191,10 +208,11 @@ jobs:
               if: github.ref_name == 'develop'
               uses: apple-actions/import-codesign-certs@v3
               with:
-                  # develop → Firebase uses DEVELOPMENT signing, so this is an Apple
-                  # Development cert. (main → App Store will use IOS_CERT_*_PROD.)
-                  p12-file-base64: ${{ secrets.IOS_CERT_BASE64_DEV }}
-                  p12-password: ${{ secrets.IOS_CERT_PASSWORD_DEV }}
+                  # develop → Firebase uses DEVELOPMENT signing, so the `development`
+                  # environment holds an Apple Development cert; `production` will hold
+                  # an Apple Distribution one under the same name.
+                  p12-file-base64: ${{ secrets.IOS_CERT_BASE64 }}
+                  p12-password: ${{ secrets.IOS_CERT_PASSWORD }}
 
             - name: Prebuild (iOS)
               if: github.ref_name == 'develop'
