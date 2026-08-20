@@ -1,10 +1,6 @@
 import type { SellGridRepository } from '@/src/domain/SellGridRepository';
-import { DummySellGridRepository } from './DummySellGridRepository';
+import { ApiSellGridRepository } from './ApiSellGridRepository';
 
-/**
- * Composition root for data access — the one place that binds domain interfaces to
- * concrete implementations. When the API lands, change `new DummySellGridRepository()`
- * to the API-backed class here; the rest of the app is untouched.
- */
+/** Composition root for data access — the one binding of {@link SellGridRepository}. */
 export const sellGridRepository: SellGridRepository =
-	new DummySellGridRepository();
+	new ApiSellGridRepository();

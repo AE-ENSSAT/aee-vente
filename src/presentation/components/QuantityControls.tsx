@@ -10,11 +10,9 @@ interface Props {
 }
 
 /**
- * Shared quantity editor: a red trash button (clears the whole line) next to a −/+ stepper.
- * Used by both the basket rows and the product detail sheet so they stay identical. At
- * quantity 0 the trash is hidden (keeping its footprint) and − is disabled, so it can live
- * in a fixed-height layout without resizing. Designed for a white surface — the gray stepper
- * buttons need a non-gray background behind them.
+ * Trash button (clears the line) next to a −/+ stepper, shared by the basket rows and the
+ * detail sheet. At quantity 0 the trash is hidden but keeps its footprint, so the layout
+ * never resizes. Designed for a white surface: the grey stepper needs a non-grey backdrop.
  */
 export function QuantityControls({
 	quantity,

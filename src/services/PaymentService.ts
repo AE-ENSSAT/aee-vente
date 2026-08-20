@@ -1,19 +1,22 @@
 import type {
 	PaymentMethod,
 	PaymentResult,
+	TapToPayAvailability,
 } from '@/modules/sumup-tap-to-pay-sdk-react-native';
 
-export type { PaymentMethod, PaymentResult };
+export type { PaymentMethod, PaymentResult, TapToPayAvailability };
 
-/**
- * Abstraction over taking a payment. The UI depends on this interface, not on the
- * SumUp module directly, so the payment backend can be mocked or replaced.
- */
+/** Card methods plus cash. A cash sale takes no card, so it never reaches this service. */
+export type CheckoutMethod = PaymentMethod | 'cash';
+
+/** Taking a card payment. Screens depend on this, not on the SumUp module. */
 export interface PaymentService {
-	/** Make the payment methods ready (log in). Idempotent; safe to call repeatedly. */
-	prepare(): Promise<void>;
-	/** Charge `amountCents` (integer minor units) with `method`. Resolves a result map. */
+	/** Log in with the tenant's own SumUp key. Idempotent per token; a new one switches account. */
+	prepare(accessToken: string): Promise<void>;
 	pay(method: PaymentMethod, amountCents: number): Promise<PaymentResult>;
-	/** Open SumUp's card-reader settings / pairing screen. */
 	openReaderSettings(): Promise<void>;
+	/** iOS only: Apple's activation / T&C sheet, outside a sale. */
+	activateTapToPay(): Promise<TapToPayAvailability>;
+	/** iOS 18+ merchant education; rejects where unavailable so the caller can fall back. */
+	presentTapToPayEducation(): Promise<void>;
 }

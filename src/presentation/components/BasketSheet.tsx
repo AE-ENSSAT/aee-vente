@@ -17,42 +17,43 @@ import {
 	useBasket,
 } from '@/src/presentation/basket/BasketContext';
 import { formatEuros } from '@/src/presentation/money';
-import { FONT } from '../theme';
-import { PayButtons } from './PayButtons';
+import { BOTTOM_GAP, FONT, SCREEN_TITLE } from '../theme';
+import { useBottomSpace } from '../useBottomSpace';
+import { PrimaryButton } from './PrimaryButton';
 
 interface Props {
 	visible: boolean;
 	onClose: () => void;
 	/** Tap a line to open that product's detail sheet. */
 	onOpenProduct: (product: Product) => void;
-	/** Fired the instant a payment succeeds, so the screen can start the success flourish. */
-	onPaid?: () => void;
+	/** The "Paiement" button; only reachable with a non-empty basket. */
+	onCheckout: () => void;
 }
 
-/** Equal breathing room at the top and bottom of the product list. */
 const GAP = 16;
 
 /** Outer gap between the sheet's cards and the screen's rounded edge. */
 const CARD_INSET = 3;
 
-/** Force the scroll view's insets to zero so margins don't shift while scrolling. */
 const ZERO_INSETS = { top: 0, bottom: 0, left: 0, right: 0 } as const;
 
 /**
- * Basket sheet backed by the native OS sheet (react-native-true-sheet). Two detents:
- * 0.7 by default, full screen when dragged up. The title (header) and Total/pay-buttons
- * (footer) are pinned; only the list scrolls. The footer floats over the scroll, so the
- * list reserves its height + GAP at the bottom to sit a GAP above it.
+ * Basket sheet on the native OS sheet (react-native-true-sheet), detents 0.7 and full.
+ * Header and footer are pinned; only the list scrolls, under a floating footer.
  */
 export function BasketSheet({
 	visible,
 	onClose,
 	onOpenProduct,
-	onPaid,
+	onCheckout,
 }: Props) {
 	const sheet = useRef<TrueSheet>(null);
 	const presented = useRef(false);
 	const { items, totalCents, itemCount, clear } = useBasket();
+	// The sheet opts out of true-sheet's auto safe-area, so the footer clears the system bar
+	// itself. Read in the host, which is under the app-root SafeAreaProvider — on Android the
+	// sheet itself renders in a separate window.
+	const footerBottom = useBottomSpace(BOTTOM_GAP);
 
 	const confirmClear = useCallback(() => {
 		Alert.alert(
@@ -65,15 +66,14 @@ export function BasketSheet({
 		);
 	}, [clear]);
 
-	// The footer floats over the scroll content, so reserve its height (plus a GAP) at
-	// the bottom of the list — that puts the last row a GAP above the footer.
+	// The footer floats over the scroll content, so the list reserves its height.
 	const [footerHeight, setFooterHeight] = useState(0);
 	const onFooterLayout = useCallback((e: LayoutChangeEvent) => {
 		setFooterHeight(e.nativeEvent.layout.height);
 	}, []);
 
-	// Act only on real visible transitions. Skipping the initial false avoids
-	// dismiss()-ing before the native view registers ("No sheet found with tag").
+	// Skipping the initial false avoids dismiss()-ing before the native view registers
+	// ("No sheet found with tag").
 	useEffect(() => {
 		if (visible && !presented.current) {
 			presented.current = true;
@@ -84,8 +84,7 @@ export function BasketSheet({
 		}
 	}, [visible]);
 
-	// The native sheet was dragged/closed: clear our flag so we don't re-dismiss,
-	// then let the parent flip `visible` to false.
+	// Dragged closed natively: clear the flag so we don't re-dismiss.
 	const handleDidDismiss = useCallback(() => {
 		presented.current = false;
 		onClose();
@@ -119,16 +118,31 @@ export function BasketSheet({
 				</View>
 			}
 			footer={
-				<View style={styles.footer} onLayout={onFooterLayout}>
+				<View
+					style={[styles.footer, { paddingBottom: footerBottom }]}
+					onLayout={onFooterLayout}
+				>
 					<View style={styles.totalRow}>
 						<Text style={styles.totalLabel}>Total</Text>
 						<Text style={styles.totalValue}>
 							{formatEuros(totalCents)}
 						</Text>
 					</View>
-					<PayButtons
+					{/* One entry point: opens the payment page (method choice). Disabled on an
+					    empty basket — there's no sale to start, so the Tap to Pay button (never
+					    shown disabled, Apple req 5.3) simply isn't presented yet. */}
+					<PrimaryButton
+						label="Paiement"
+						variant="primary"
 						disabled={itemCount === 0}
-						onPaymentSuccess={onPaid}
+						onPress={onCheckout}
+						icon={
+							<Ionicons
+								name="card-outline"
+								size={20}
+								color="#ffffff"
+							/>
+						}
 					/>
 				</View>
 			}
@@ -137,9 +151,8 @@ export function BasketSheet({
 				style={styles.list}
 				contentContainerStyle={[
 					styles.listContent,
-					// Reserve the floating footer's height plus a GAP. The footer
-					// is pinned flush to the sheet bottom (no vertical margin), so
-					// the last row lands exactly GAP above it — matching the top.
+					// The footer is pinned flush to the sheet bottom, so this lands the
+					// last row exactly GAP above it — matching the top.
 					{ paddingBottom: footerHeight + GAP },
 				]}
 				contentInsetAdjustmentBehavior="never"
@@ -175,9 +188,8 @@ interface BasketRowProps {
 }
 
 /**
- * A single basket line: quantity then product (and variant) name on the left, the line
- * sub-total on the right. Tapping the row opens the product's detail sheet (where quantity
- * is edited). The variant, when present, sets both the displayed name and the unit price.
+ * One basket line: quantity and name left, sub-total right. Tapping it opens the product's
+ * detail sheet, where the quantity is edited. A variant sets both the name and the price.
  */
 function BasketRow({ item, onOpen }: BasketRowProps) {
 	const name = item.variant
@@ -207,26 +219,15 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'space-between',
 		paddingHorizontal: 18,
-		// Outer gap from the card's rounded edge (sides + top).
 		marginHorizontal: CARD_INSET,
 		marginTop: CARD_INSET,
-		// Top margin also clears the native grabber; bottom margin spaces the
-		// title from the divider below.
+		// Top padding also clears the native grabber.
 		paddingTop: 24,
 		paddingBottom: 20,
-		// Divider so the title reads as separate from the list.
 		borderBottomWidth: 1,
 		borderBottomColor: '#E5E1DA',
 	},
-	title: {
-		flex: 1,
-		textAlign: 'center',
-		fontSize: 22,
-		fontFamily: FONT.black,
-		color: '#A91B3A',
-		textTransform: 'uppercase',
-		letterSpacing: 0.3,
-	},
+	title: SCREEN_TITLE,
 	clearBtn: {
 		width: 36,
 		height: 36,
@@ -252,12 +253,10 @@ const styles = StyleSheet.create({
 		paddingVertical: 32,
 	},
 	list: { marginHorizontal: CARD_INSET },
-	// Top-aligned with a constant GAP; the dynamic paddingBottom (footer height +
-	// GAP) clears the floating footer. When the sheet hugs the content both ends are
-	// exactly GAP; only a sub-MIN basket leaves extra room, which falls to the bottom.
+	// Top gap is constant; the dynamic paddingBottom (footer height + GAP) clears the
+	// floating footer, so both ends read as GAP.
 	listContent: { paddingTop: GAP },
 	itemsWrap: { gap: 12, paddingHorizontal: 18 },
-	// Tappable white card; opens the product detail sheet.
 	row: {
 		flexDirection: 'row',
 		alignItems: 'center',
@@ -271,7 +270,6 @@ const styles = StyleSheet.create({
 	},
 	rowPressed: { opacity: 0.6 },
 	left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-	// Quantity chip sitting before the name.
 	qty: {
 		minWidth: 30,
 		textAlign: 'center',
@@ -290,14 +288,10 @@ const styles = StyleSheet.create({
 		gap: 12,
 		paddingHorizontal: 18,
 		paddingTop: 12,
-		// Flush to the sheet bottom (no marginBottom) so the list's bottom gap is a
-		// clean footerHeight + GAP; the padding clears the home indicator. The extra
-		// CARD_INSET keeps the buttons the same distance from the bottom as before.
-		paddingBottom: 24 + CARD_INSET,
+		// Flush to the sheet bottom, so the list's bottom gap is a clean footerHeight + GAP.
+		// paddingBottom is dynamic, clearing the Android nav bar / iOS home indicator.
 		backgroundColor: '#ffffff',
-		// Outer gap from the card's rounded edge (sides only).
 		marginHorizontal: CARD_INSET,
-		// Full-width divider matching the header bar.
 		borderTopWidth: 1,
 		borderTopColor: '#E5E1DA',
 	},

@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { FONT } from '../theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'tertiary';
+export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'success';
 
 interface Props {
 	label: string;
@@ -71,6 +71,9 @@ const styles = StyleSheet.create({
 	primary: { backgroundColor: '#A91B3A' },
 	secondary: { backgroundColor: '#96275E' },
 	tertiary: { backgroundColor: '#E5E1DA' },
+	// Cash: the app's "accepted" green (also the transaction-accepted badge) — cash is money
+	// in hand, so it reads as the sure, no-network settlement next to the card methods.
+	success: { backgroundColor: '#16875A' },
 	disabled: { opacity: 0.5 },
 	pressed: { opacity: 0.85 },
 	label: { color: '#ffffff', fontSize: 16, fontFamily: FONT.bold },

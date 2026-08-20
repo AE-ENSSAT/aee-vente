@@ -1,15 +1,22 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import type { Product, SellGrid as SellGridModel } from '@/src/domain/models';
 import { APP_MARGIN } from '../theme';
 import { ProductTile } from './ProductTile';
 
 const GAP = 10;
+/** The app red, for the pull-to-refresh spinner (iOS `tintColor`, Android `colors`). */
+const REFRESH_COLOR = '#A91B3A';
 
 interface Props {
 	grid: SellGridModel;
 	onSelectProduct: (product: Product) => void;
 	/** Long-press a tile to open its detail sheet. */
 	onLongPressProduct?: (product: Product) => void;
+	/** System-bar inset plus the floating basket button, so the last row clears both. */
+	bottomInset?: number;
+	/** Pull down on the grid to re-read the catalogue. Omit to disable. */
+	onRefresh?: () => void;
+	refreshing?: boolean;
 }
 
 interface Cell {
@@ -25,13 +32,17 @@ interface Row {
 const cellKey = (x: number, y: number) => `${x},${y}`;
 
 /**
- * Renders a sell grid as a fixed {@link SellGridModel.columns} × {@link SellGridModel.rows}
- * matrix of square cells. Each product sits at its own (x, y); any cell without a product is
- * left empty. Cells split the row width evenly (`flex: 1` + `aspectRatio: 1`), so tiles stay
- * square at any column count and the grid scrolls vertically when taller than the screen.
+ * A `columns` × `rows` matrix of square cells, each product at its own (x, y). Cells split
+ * the row evenly (`flex: 1` + `aspectRatio: 1`), so tiles stay square at any column count.
  */
-export function SellGrid({ grid, onSelectProduct, onLongPressProduct }: Props) {
-	// Index the placed products by cell for O(1) lookup while building the matrix.
+export function SellGrid({
+	grid,
+	onSelectProduct,
+	onLongPressProduct,
+	bottomInset = 0,
+	onRefresh,
+	refreshing = false,
+}: Props) {
 	const byCell = new Map<string, Product>();
 	for (const item of grid.items) {
 		byCell.set(cellKey(item.x, item.y), item.product);
@@ -52,7 +63,22 @@ export function SellGrid({ grid, onSelectProduct, onLongPressProduct }: Props) {
 	return (
 		<ScrollView
 			style={styles.scroll}
-			contentContainerStyle={styles.content}
+			contentContainerStyle={[
+				styles.content,
+				{ paddingBottom: APP_MARGIN + bottomInset },
+			]}
+			// On this vertical list, not the horizontal pager around it: a scroll view only
+			// refreshes on the axis it scrolls. Each platform keeps its own native feel.
+			refreshControl={
+				onRefresh && (
+					<RefreshControl
+						refreshing={refreshing}
+						onRefresh={onRefresh}
+						tintColor={REFRESH_COLOR}
+						colors={[REFRESH_COLOR]}
+					/>
+				)
+			}
 		>
 			{rows.map((row) => (
 				<View key={row.key} style={styles.row}>
@@ -74,12 +100,9 @@ export function SellGrid({ grid, onSelectProduct, onLongPressProduct }: Props) {
 }
 
 const styles = StyleSheet.create({
-	// flex:1 so the grid fills the space below the pinned title + carousel and
-	// scrolls internally, instead of growing and squashing them.
+	// flex:1 so the grid scrolls internally instead of squashing the pinned header.
 	scroll: { flex: 1 },
-	// Small paddingTop so the top row's count badges (which overhang the tile by 4px)
-	// aren't clipped at the grid's top edge. The persistent gap below the carousel is
-	// still the bar's own paddingBottom.
+	// paddingTop so the top row's count badges (a 4px overhang) aren't clipped.
 	content: { padding: APP_MARGIN, paddingTop: 8, gap: GAP },
 	row: { flexDirection: 'row', gap: GAP },
 	cell: { flex: 1, aspectRatio: 1 },

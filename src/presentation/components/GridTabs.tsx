@@ -17,15 +17,12 @@ interface Props {
 }
 
 /**
- * Horizontal, scrollable selector. Tapping (or selecting via the grid swipe) scrolls
- * the selected pill to the centre of the bar (clamped at the ends). Each pill hugs its
- * single-line label.
+ * Horizontal pill selector. Tapping one — or swiping the grid — scrolls it to the centre of
+ * the bar, clamped at the ends.
  */
 export function GridTabs({ tabs, selectedId, onSelect }: Props) {
 	const scrollRef = useRef<ScrollView>(null);
-	// Each pill's centre x within the scroll content, captured on layout.
 	const centers = useRef<Record<string, number>>({});
-	// The bar's own width, so we can offset by half of it to centre a pill.
 	const viewport = useRef(0);
 
 	useEffect(() => {
@@ -76,11 +73,9 @@ export function GridTabs({ tabs, selectedId, onSelect }: Props) {
 }
 
 const styles = StyleSheet.create({
-	// Fixed to its own content height so the flex column can't squash it (which
-	// would clip the pill text top and bottom).
+	// Fixed to its content height so the flex column can't squash and clip the pill text.
 	bar: { flexGrow: 0, flexShrink: 0 },
-	// paddingBottom is the persistent gap above the grid — it stays put while the grid
-	// scrolls under it (the grid has no paddingTop, so its rows can't reach the pills).
+	// paddingBottom is the persistent gap above the grid; it stays put as the grid scrolls.
 	content: {
 		paddingHorizontal: APP_MARGIN,
 		paddingBottom: PILL_GAP,

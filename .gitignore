@@ -68,3 +68,18 @@ yarn-error.*
 # ----------------------
 /ios
 /android
+
+# ----------------------
+# fastlane runtime output (fastlane/Fastfile itself is tracked)
+# ----------------------
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Signing material — never commit
+*.mobileprovision
+*.p8
+*.p12
+*.jks
+*.keystore

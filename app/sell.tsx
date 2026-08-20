@@ -1,8 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
 	type NativeScrollEvent,
 	type NativeSyntheticEvent,
+	Pressable,
 	ScrollView,
 	StyleSheet,
 	Text,
@@ -15,29 +18,40 @@ import { useBasket } from '@/src/presentation/basket/BasketContext';
 import { BasketFab } from '@/src/presentation/components/BasketFab';
 import { BasketSheet } from '@/src/presentation/components/BasketSheet';
 import { GridTabs } from '@/src/presentation/components/GridTabs';
+import { PaymentSheet } from '@/src/presentation/components/PaymentSheet';
 import { PaymentSuccessOverlay } from '@/src/presentation/components/PaymentSuccessOverlay';
 import { ProductDetailSheet } from '@/src/presentation/components/ProductDetailSheet';
+import { ReceiptPrompt } from '@/src/presentation/components/ReceiptPrompt';
 import { SellGrid } from '@/src/presentation/components/SellGrid';
-import { hapticLongPress, hapticSuccess } from '@/src/presentation/haptics';
+import {
+	hapticLongPress,
+	hapticRefresh,
+	hapticSuccess,
+} from '@/src/presentation/haptics';
 import { useSellGrids } from '@/src/presentation/sell/useSellGrids';
-import { APP_MARGIN, FONT } from '@/src/presentation/theme';
+import { APP_MARGIN, FAB_GAP, FAB_SIZE, FONT } from '@/src/presentation/theme';
+import { useBottomSpace } from '@/src/presentation/useBottomSpace';
 
 /** The sell page: grid selector + product grid, with the floating basket + sheet. */
 export default function SellScreen() {
-	const { grids, loading, error } = useSellGrids();
+	const { grids, loading, error, refreshing, refresh } = useSellGrids();
 	const { addProduct, itemCount, clear } = useBasket();
 	const { width } = useWindowDimensions();
+	const router = useRouter();
+	// Enough scroll room for the last row to clear the floating basket button.
+	const gridBottomInset = useBottomSpace(FAB_GAP) + FAB_SIZE;
 	const pagerRef = useRef<ScrollView>(null);
 	const [selectedId, setSelectedId] = useState<string>('');
 	const [basketOpen, setBasketOpen] = useState(false);
-	// While true, the success flourish covers the whole app (in a window-level layer above the
-	// basket sheet), while the basket empties and the sheet closes behind it, unseen.
+	const [paymentOpen, setPaymentOpen] = useState(false);
+	// While true the flourish covers the app, and the basket empties behind it, unseen.
 	const [celebrating, setCelebrating] = useState(false);
-	// The product whose detail sheet is open (long-press a tile), or null when closed.
+	// Kept so the receipt prompt, raised once the flourish fades, can open its detail.
+	const [receiptTxId, setReceiptTxId] = useState<string | null>(null);
+	const [showReceiptPrompt, setShowReceiptPrompt] = useState(false);
 	const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
-	// Tap a tile: a product with variants opens its detail sheet (pick variants there);
-	// a plain product is added straight to the basket. No haptic on a simple tap.
+	// A product with variants opens its detail sheet; a plain one goes straight in.
 	const tapProduct = useCallback(
 		(product: Product) => {
 			if (product.variants?.length) {
@@ -49,28 +63,56 @@ export default function SellScreen() {
 		[addProduct],
 	);
 
-	// Long-press a tile: buzz, then open its detail sheet (works for any product).
 	const openDetail = useCallback((product: Product) => {
 		hapticLongPress();
 		setDetailProduct(product);
 	}, []);
 
-	// Payment succeeded — the instant SumUp returns accepted. Pop the flourish on top of
-	// everything (with the haptic); then, deferred a frame so the overlay is up first, empty
-	// the basket and close the sheet behind it. The overlay is an independent window-level
-	// layer, so the sheet's close is never seen.
-	const handlePaid = useCallback(() => {
-		hapticSuccess();
-		setCelebrating(true);
-		requestAnimationFrame(() => {
-			clear();
-			setBasketOpen(false);
-		});
-	}, [clear]);
+	// Buzz the moment the pull fires: on Android the grid doesn't move, so the spinner is
+	// the only sign anything happened.
+	const reloadGrids = useCallback(() => {
+		hapticRefresh();
+		refresh();
+	}, [refresh]);
 
-	// The closing fade has finished onto the cleared, sheet-less screen — retire the flourish.
+	// Pop the flourish first, then — deferred a frame, so the overlay is already up — empty
+	// the basket and close the sheet behind it, unseen.
+	const handlePaid = useCallback(
+		(transactionId: string | null) => {
+			hapticSuccess();
+			setCelebrating(true);
+			setReceiptTxId(transactionId);
+			setShowReceiptPrompt(false);
+			requestAnimationFrame(() => {
+				clear();
+				setPaymentOpen(false);
+				setBasketOpen(false);
+			});
+		},
+		[clear],
+	);
+
+	// The fade has finished onto the cleared screen: retire the flourish, raise the prompt.
 	const handleHidden = useCallback(() => {
 		setCelebrating(false);
+		setShowReceiptPrompt(true);
+	}, []);
+
+	// "Oui" — open the sale's detail as a receipt.
+	const acceptReceipt = useCallback(() => {
+		setShowReceiptPrompt(false);
+		if (receiptTxId) {
+			router.push({
+				pathname: '/transaction/[id]',
+				params: { id: receiptTxId, origin: 'receipt' },
+			});
+		}
+	}, [receiptTxId, router]);
+
+	// "Non", or the countdown elapsed.
+	const dismissReceipt = useCallback(() => {
+		setShowReceiptPrompt(false);
+		setReceiptTxId(null);
 	}, []);
 
 	const tabs = useMemo(
@@ -78,14 +120,13 @@ export default function SellScreen() {
 		[grids],
 	);
 
-	// Default the selection to the first grid once loaded (no synthetic "Tout" tab).
+	// Default to the first grid once loaded.
 	useEffect(() => {
 		if (grids.length && !grids.some((g) => g.id === selectedId)) {
 			setSelectedId(grids[0].id);
 		}
 	}, [grids, selectedId]);
 
-	// Tap a pill: select it and page the grid across to it.
 	const selectTab = useCallback(
 		(id: string) => {
 			setSelectedId(id);
@@ -100,7 +141,6 @@ export default function SellScreen() {
 		[grids, width],
 	);
 
-	// Swiping the grid between pages updates the selection.
 	const onPagerScrollEnd = useCallback(
 		(e: NativeSyntheticEvent<NativeScrollEvent>) => {
 			const index = Math.round(e.nativeEvent.contentOffset.x / width);
@@ -114,13 +154,32 @@ export default function SellScreen() {
 
 	return (
 		<SafeAreaView style={styles.safe} edges={['top']}>
-			<Text style={styles.title}>AEE Vente</Text>
+			<View style={styles.header}>
+				<Text style={styles.title}>AEE Vente</Text>
+				{/* Account / settings menu: seller profile, transaction history, the
+				    Tap to Pay on iPhone help page (req 4.3), and sign out. */}
+				<Pressable
+					onPress={() => router.push('/settings')}
+					style={styles.infoBtn}
+					accessibilityRole="button"
+					accessibilityLabel="Réglages"
+					hitSlop={8}
+				>
+					<Ionicons
+						name="settings-outline"
+						size={25}
+						color="#A91B3A"
+					/>
+				</Pressable>
+			</View>
 
 			{loading ? (
 				<View style={styles.center}>
 					<ActivityIndicator />
 				</View>
-			) : error ? (
+			) : /* An error with a catalogue already on screen came from a pull-to-refresh:
+			      keep selling on what we have rather than blanking the till. */
+			error && !grids.length ? (
 				<View style={styles.center}>
 					<Text style={styles.error}>
 						Erreur de chargement : {error}
@@ -147,6 +206,9 @@ export default function SellScreen() {
 									grid={g}
 									onSelectProduct={tapProduct}
 									onLongPressProduct={openDetail}
+									bottomInset={gridBottomInset}
+									refreshing={refreshing}
+									onRefresh={reloadGrids}
 								/>
 							</View>
 						))}
@@ -154,11 +216,23 @@ export default function SellScreen() {
 				</>
 			)}
 
-			<BasketFab count={itemCount} onPress={() => setBasketOpen(true)} />
+			{/* Hidden while the receipt prompt is up — the two float at the same bottom-right
+			    corner, and the basket is empty at that point anyway. */}
+			{!showReceiptPrompt && (
+				<BasketFab
+					count={itemCount}
+					onPress={() => setBasketOpen(true)}
+				/>
+			)}
 			<BasketSheet
 				visible={basketOpen}
 				onClose={() => setBasketOpen(false)}
 				onOpenProduct={setDetailProduct}
+				onCheckout={() => setPaymentOpen(true)}
+			/>
+			<PaymentSheet
+				visible={paymentOpen}
+				onClose={() => setPaymentOpen(false)}
 				onPaid={handlePaid}
 			/>
 			<ProductDetailSheet
@@ -171,6 +245,13 @@ export default function SellScreen() {
 				visible={celebrating}
 				onHidden={handleHidden}
 			/>
+			{/* Post-payment: once the flourish has faded, offer a receipt for the sale. */}
+			{showReceiptPrompt && receiptTxId && (
+				<ReceiptPrompt
+					onAccept={acceptReceipt}
+					onDismiss={dismissReceipt}
+				/>
+			)}
 		</SafeAreaView>
 	);
 }
@@ -178,16 +259,21 @@ export default function SellScreen() {
 const styles = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: '#FAF7F2' },
 	pager: { flex: 1 },
+	header: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingHorizontal: APP_MARGIN,
+		paddingTop: APP_MARGIN,
+		paddingBottom: APP_MARGIN,
+	},
 	title: {
 		fontSize: 26,
 		fontFamily: FONT.black,
 		color: '#A91B3A',
 		letterSpacing: 0.3,
-		paddingHorizontal: APP_MARGIN,
-		// Same margin above and below as the gaps below (carousel ↔ grid, grid bottom).
-		paddingTop: APP_MARGIN,
-		paddingBottom: APP_MARGIN,
 	},
+	infoBtn: { padding: 4 },
 	center: {
 		flex: 1,
 		alignItems: 'center',
