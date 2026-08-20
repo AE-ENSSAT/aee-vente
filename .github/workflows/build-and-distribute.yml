@@ -133,7 +133,10 @@ jobs:
                   echo "e.g. r0adkll/upload-google-play with a GOOGLE_PLAY_SERVICE_ACCOUNT secret (see docs/CI.md)."
 
     ios:
-        runs-on: macos-15
+        # macos-15 tops out at Xcode 26.3, whose clang rejects expo-modules-jsi's
+        # C++/Swift interop (SWIFT_RETURNS_RETAINED on a constructor). macos-26 carries
+        # 26.6, matching local dev, so CI and a developer's machine agree.
+        runs-on: macos-26
         env:
             SUMUP_AFFILIATE_KEY: ${{ secrets.SUMUP_AFFILIATE_KEY }}
             SUMUP_ACCESS_TOKEN: ${{ secrets.SUMUP_ACCESS_TOKEN }}
@@ -150,7 +153,9 @@ jobs:
 
             - uses: maxim-lobanov/setup-xcode@v1
               with:
-                  xcode-version: latest-stable
+                  # Pinned rather than `latest-stable`: the toolchain decides whether
+                  # Expo's own sources compile, so it should not move on its own.
+                  xcode-version: '26.6'
             - uses: oven-sh/setup-bun@v2
             - uses: actions/setup-node@v4
               with:
