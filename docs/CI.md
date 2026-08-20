@@ -3,14 +3,15 @@
 GitHub Actions builds signed **release** artifacts for both platforms and ships them
 **per branch** (see [.github/workflows/build-and-distribute.yml](../.github/workflows/build-and-distribute.yml)):
 
-| Push to | iOS | Android | Target | Status |
-|---|---|---|---|---|
-| `develop` | dev-signed IPA (fastlane) | APK | **Firebase App Distribution** | ✅ working |
-| `main` | stub (TODO) | AAB | **App Store / Google Play** | ⚠️ upload is TODO (see [below](#later--store-releases-main-branch)) |
+| Push to | iOS | Android | Target |
+|---|---|---|---|
+| `develop` | development-signed IPA | APK | **Firebase App Distribution** |
+| `main` | App Store IPA **+** ad-hoc IPA | AAB **+** APK | **TestFlight** + **Google Play** (production, as a *draft*), and Firebase for both |
 
-On `main` the Android **AAB** is built (compile + sign gate); the iOS build and both
-store-upload steps are stubbed — pushing to `main` succeeds with a warning until you wire
-them up.
+Nothing on `main` reaches users by itself: Play receives a **draft** release awaiting a
+human's roll-out click, and TestFlight builds go to internal testers only. On iOS the two
+IPAs come from **one archive exported twice** — App Distribution cannot install an App
+Store-signed IPA, so testers get the ad-hoc export of the very same binary.
 
 ### App variants (`.dev` vs production)
 
@@ -50,10 +51,12 @@ direct pushes to `develop` / `main`.
 ### 1. Firebase App Distribution
 
 1. Create (or reuse) a Firebase project.
-2. Register **two apps** in it, using the **`.dev`** ids (that's what `develop` distributes):
-   - Android package `bzh.aee.vente.dev`
-   - iOS bundle ID `bzh.aee.vente.dev`
-   Copy each **App ID** (looks like `1:1234567890:android:abcdef…`) → `FIREBASE_APP_ID_*`.
+2. Register **four apps** in it — one per platform per identity, since a Firebase app is
+   keyed by package/bundle id:
+   - `bzh.aee.vente.dev` (Android + iOS) — what `develop` distributes
+   - `bzh.aee.vente` (Android + iOS) — production identity, for release candidates
+   Copy each **App ID** (looks like `1:1234567890:android:abcdef…`) → `FIREBASE_APP_ID_*`
+   in the matching environment.
 3. In **App Distribution**, create a tester group (default name used by the workflow:
    `testers`) and add testers.
 4. Create a service account for uploads:
@@ -166,9 +169,16 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy # → ASC_API_KEY_P8
 
 > **Auto-UDID, hands-off**: a tester taps the Firebase invite on their iPhone and installs a
 > small profile — Firebase captures their UDID. Give **Firebase the *same* ASC API key**
-> (App Distribution → iOS device registration) and it registers the UDID with Apple. On the
-> next `develop` build, `sigh --force` regenerates the profile with that device already in
-> it. No profile files, no secret to refresh — just re-run.
+> (App Distribution → iOS device registration) and it
+> [registers the UDID with Apple](https://firebase.google.com/docs/app-distribution/register-additional-devices)
+> for you; without it you get a list to paste into the portal by hand. Either way the next
+> build's `sigh --force` regenerates the profile with that device in it. This covers both
+> branches — `develop`'s development profile and `main`'s ad-hoc one are both device-locked.
+>
+> Apple caps a profile at **100 iOS devices per membership year**, and devices can only be
+> removed at renewal, so registrations accumulate. TestFlight has no such cap — which is why
+> `main` feeds both: Firebase for whoever needs a build right now, TestFlight for everyone
+> else.
 
 ---
 
@@ -183,13 +193,13 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy # → ASC_API_KEY_P8
 CI runs under a **GitHub environment** picked by branch — both jobs declare:
 
 ```yaml
-environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+environment: ${{ github.ref_name == 'main' && 'production' || 'develop' }}
 ```
 
 | Branch | Environment | Signs with | Ships to |
 |---|---|---|---|
 | `develop` | `develop` | dev keystore / Apple **Development** cert | Firebase App Distribution |
-| `main` | `production` | Play upload key / Apple **Distribution** cert | Play + App Store (stubbed) |
+| `main` | `production` | Play upload key / Apple **Distribution** cert | Play (draft) + TestFlight + Firebase |
 
 Each environment holds its own copy of the same secret **names** — no `_DEV`/`_PROD`
 suffixes and no branch ternaries in the workflow. An environment secret overrides a
@@ -255,19 +265,130 @@ human.
 
 ### 4. `production` environment (branch `main`)
 
-**Variables**: the same five — identical values today, since both point at one backend.
-This is where a staging URL would diverge later.
+A push to `main` builds and signs everything and publishes it: Play (draft), TestFlight, and
+Firebase for both platforms. So `production` needs the full set — an Android upload key, an
+Apple **Distribution** certificate, both Firebase app ids and a Play service account.
 
-**Secrets**:
+**4.1 — Create the Play upload key.** A separate keystore from dev, so the far more
+frequently run `develop` pipeline never handles the key Google trusts:
 
-| Secret | What it is | Needed |
-|---|---|---|
-| `SUMUP_AFFILIATE_KEY` | affiliate key of the **live** SumUp app | now — every `main` build reads it |
-| `ANDROID_KEYSTORE_BASE64` + `_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | the **Play upload key** (a different keystore from dev) | now — `Decode upload keystore` runs on `main` too |
-| `IOS_CERT_BASE64` / `IOS_CERT_PASSWORD` | **Apple Distribution** `.p12` | when the App Store step stops being a stub |
-| `FIREBASE_APP_ID_*` | only if you ever distribute production builds via Firebase | not now |
+```bash
+mkdir -p ~/Documents/AEE/environnements/production
+cd ~/Documents/AEE/environnements/production
+keytool -genkeypair -v -keystore aee-prod.jks -alias aee-prod \
+  -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12
+base64 -i aee-prod.jks | pbcopy   # → ANDROID_KEYSTORE_BASE64
+```
 
-`ASC_*`, `IOS_TEAM_ID` and the Maven credentials are inherited from the repository level.
+PKCS12 keeps **one** password for the store and the key, so `ANDROID_KEY_PASSWORD` equals
+`ANDROID_KEYSTORE_PASSWORD`. Save both plus the alias next to the `.jks` — GitHub never
+shows a secret back.
+
+**4.2 — Live SumUp affiliate key.** SumUp Dashboard → **Developers** → the *production*
+app, not the test one → affiliate key (`sup_afk_…`).
+
+**4.3 — Apple Distribution certificate.** Same openssl flow as step 3, different certificate
+*type* — App Store builds sign with **Apple Distribution**, and a Development cert is
+rejected there:
+
+```bash
+cd ~/Documents/AEE/environnements/production
+
+# 1. its own key + CSR (never reuse the develop key — the point of the split is that one
+#    leaked environment can be revoked without touching the other)
+openssl req -new -newkey rsa:2048 -nodes \
+  -keyout ios-prod.key -out ios-prod.csr -subj "/CN=AEE Vente CI Distribution"
+```
+
+2. [developer.apple.com → Certificates](https://developer.apple.com/account/resources/certificates)
+   — team selector on *Association des élèves de l'ENSSAT* — **+** → **Apple Distribution**
+   (under Software; not "iOS Distribution", which is the legacy type) → upload
+   `ios-prod.csr` → download `distribution.cer`. Creating a distribution certificate needs
+   the **Account Holder** or **Admin** role, and a team holds only a few at once — revoke a
+   dead one rather than stacking them, since revoking breaks every build signed with it.
+
+```bash
+# 3. verify the pair BEFORE building the .p12
+openssl x509 -in distribution.cer -inform DER -noout -pubkey | openssl md5
+openssl pkey  -in ios-prod.key -pubout | openssl md5     # the two hashes must be identical
+openssl x509 -in distribution.cer -inform DER -noout -subject -enddate  # expect OU=CG7527KR3Y
+
+# 4. build the .p12 (prompts for the export password → IOS_CERT_PASSWORD)
+openssl x509 -in distribution.cer -inform DER -out distribution.pem
+openssl pkcs12 -export -inkey ios-prod.key -in distribution.pem \
+  -out ios-prod.p12 -name "Apple Distribution"
+
+# 5. the secret
+base64 -i ios-prod.p12 | pbcopy          # → production env: IOS_CERT_BASE64
+```
+
+> One certificate covers both exports: App Store *and* ad-hoc profiles are signed by an
+> Apple Distribution cert. The App ID `bzh.aee.vente` must have **Tap to Pay on iPhone**
+> enabled under the team's *production* entitlement — `app.config.js` requests
+> `proximity-reader.payment.acceptance` unconditionally, so a profile without it fails the
+> archive, not the upload.
+
+**4.4 — Firebase apps for the production ids.** In the same Firebase project, register two
+more apps — Android package **`bzh.aee.vente`** and iOS bundle **`bzh.aee.vente`** (the
+existing pair is `.dev`). Copy each App ID → `FIREBASE_APP_ID_ANDROID` / `_IOS`. `main`
+distributes to these alongside the store uploads, so testers see the production build
+without waiting on Play review or TestFlight processing.
+
+**4.5 — Google Play service account + the first manual release.** Two prerequisites the
+API cannot do for you:
+
+1. **Create the app** in the [Play Console](https://play.google.com/console) with package
+   `bzh.aee.vente`, and upload the **first** AAB by hand. Google refuses API publishing for
+   an app that has never had a release — build one locally
+   (`cd android && ./gradlew :app:bundleRelease` with the prod keystore properties) or take
+   the AAB artifact from a `main` run, whose Play step will have failed. Accept **Play App
+   Signing** here: `aee-prod.jks` becomes the *upload* key and Google holds the real signing
+   key.
+2. **Service account**: Google Cloud console → the project behind your Play account →
+   IAM & Admin → Service accounts → **Create**, then **Keys → Add key → JSON**. Back in the
+   Play Console: **Users and permissions → Invite user**, paste the service-account email,
+   grant it *Release to production, exclude devices, and use app signing* on this app only.
+   The JSON file's whole contents → `GOOGLE_PLAY_SERVICE_ACCOUNT`.
+
+> Permission changes take a few minutes to reach the API; a first run right after inviting
+> the account can still 403.
+
+**4.6 — Create the environment.** Settings → Environments → **New environment** →
+`production` (exact name; the workflow reads `github.ref_name == 'main' && 'production'`).
+Then on its page:
+
+- **Deployment branches and tags → Selected branches and tags** → add `main`, nothing else.
+- **Required reviewers** → add yourself. Worth having here and not on `develop`: it makes a
+  store release a deliberate click instead of a side-effect of a merge.
+
+**4.7 — Environment secrets**
+
+| Secret | Value |
+|---|---|
+| `SUMUP_AFFILIATE_KEY` | the live `sup_afk_…` from 4.2 |
+| `ANDROID_KEYSTORE_BASE64` | output of `base64 -i aee-prod.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | the store password from 4.1 |
+| `ANDROID_KEY_ALIAS` | `aee-prod` |
+| `ANDROID_KEY_PASSWORD` | same as the store password |
+| `IOS_CERT_BASE64` | output of `base64 -i ios-prod.p12` |
+| `IOS_CERT_PASSWORD` | the export password from 4.3 step 4 |
+| `FIREBASE_APP_ID_ANDROID` | Firebase App ID, package `bzh.aee.vente` |
+| `FIREBASE_APP_ID_IOS` | Firebase App ID, bundle `bzh.aee.vente` |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT` | full JSON key of the Play Console service account (4.5) |
+
+**4.8 — Environment variables**: the same five as `develop`, with the same values today —
+both branches point at one backend. `FIREBASE_TESTER_GROUPS` is unused on `main` (the
+Firebase steps are `develop`-only); set it anyway so the two environments stay diffable.
+
+`ASC_*`, `IOS_TEAM_ID` and the SumUp Maven credentials stay at **repository** level and need
+no production copy: one App Store Connect key and one team id serve both branches, and a
+repository secret is visible to every environment that doesn't shadow it. Duplicating them
+would only create a second value to forget to rotate.
+
+> Before the first App Store build, register the App ID **`bzh.aee.vente`** with **Tap to
+> Pay on iPhone** — the same portal step `bzh.aee.vente.dev` needs. `versionCode` is
+> `github.run_number`, which increases across both branches, so Play's
+> ever-increasing-version rule holds on its own.
 
 ### Two things that catch people out
 
@@ -282,37 +403,48 @@ deleted.
 
 ---
 
-## Later — store releases (`main` branch)
+## Store releases (`main` branch)
 
-Pushing to `main` already builds the release **AAB** (Android); the iOS build and both store
-uploads are stubbed. To finish them, add the bits below and replace the `Publish to Google
-Play` / `Publish to App Store Connect` steps in the workflow.
+A push to `main` runs the same build as `develop` against the production identity
+(`bzh.aee.vente`), then fans out to three destinations.
 
-**Google Play** (Android AAB → Play):
+**Android** — `bundleRelease` produces the AAB that
+[`r0adkll/upload-google-play`](https://github.com/r0adkll/upload-google-play) sends to the
+**production** track with `status: draft`, and `assembleRelease` produces an APK for
+Firebase. A draft release sits in the Play Console until someone reviews and rolls it out,
+so a merge can never reach users on its own.
 
-| Secret | What it is |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64` (+ `_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) in the `production` environment | the prod upload key (from setup step 2) |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT` | JSON key for a Play Console service account with release permissions |
+**iOS** — the `prod` lane in [fastlane/Fastfile](../fastlane/Fastfile) creates two profiles
+off the one Apple Distribution certificate, archives **once**, and exports that archive
+twice: the App Store IPA goes to **TestFlight** via `upload_to_testflight`, the ad-hoc IPA
+to Firebase. Exporting re-signs, so the tester build and the store build are the same
+compiled binary rather than two ~20-minute compiles.
 
-Then swap the stub for e.g. `r0adkll/upload-google-play` pointing at
-`android/app/build/outputs/bundle/release/app-release.aab`. Note: the app must first be
-created in the Play Console and the **first** AAB uploaded manually.
+Prerequisites beyond the secrets in setup step 4:
 
-**App Store** (iOS → TestFlight / App Store):
+- **App ID `bzh.aee.vente`** registered on the Apple portal with **Tap to Pay on iPhone**
+  enabled — an App Store profile that can't carry
+  `com.apple.developer.proximity-reader.payment.acceptance` fails the *archive*, not the
+  upload, so this surfaces as a signing error.
+- **An app record in App Store Connect** for that bundle id. `upload_to_testflight` uploads
+  a build to an existing app; it does not create one.
+- **The first Play release uploaded by hand** (4.5) — the API refuses an app with no
+  release history.
 
-Add an **Apple Distribution** cert to the `production` environment as `IOS_CERT_BASE64` /
-`IOS_CERT_PASSWORD`; reuse `IOS_TEAM_ID` and the **same** `ASC_*` API key.
-Add a fastlane `release` lane mirroring `adhoc` but with `sigh(adhoc: false)` (an App Store
-profile) and `build_app(export_method: "app-store")`, then `upload_to_testflight(api_key:
-api_key)`. Register the `bzh.aee.vente` App ID (with the entitlement) first.
+> **The Firebase APK and the Play build are not interchangeable.** Firebase ships the APK
+> signed with `aee-prod.jks` (your *upload* key); Play re-signs with the key Google holds.
+> Same package name, different signature — a tester who installed one must uninstall before
+> the other will install. Keep Firebase for release candidates and Play for the real thing,
+> rather than mixing them on one device.
 
 ---
 
 ## How it works (brief)
 
-- **Branch routing**: push to `develop` → Firebase App Distribution; push to `main` → stores
-  (upload TODO). Steps are gated with `if: github.ref_name == '…'`.
+- **Branch routing**: push to `develop` → Firebase App Distribution; push to `main` → Play
+  (draft) + TestFlight + Firebase. Only the three AAB/Play steps are gated with
+  `if: github.ref_name == 'main'`; everything else is branch-agnostic and differs only by
+  which environment's secrets it reads.
 - **Prebuild**: `ios/`/`android/` are gitignored (Expo CNG), so each job runs
   `expo prebuild` first. `BUILD_NUMBER=${{ github.run_number }}` feeds
   `ios.buildNumber` / `android.versionCode` in [app.config.js](../app.config.js) so every
@@ -321,10 +453,11 @@ api_key)`. Register the `bzh.aee.vente` App ID (with the entitlement) first.
   `release` signing config to the generated `build.gradle`, reading the keystore creds from
   `ORG_GRADLE_PROJECT_AEE_UPLOAD_*` env. With no keystore configured it falls back to debug
   signing, so local builds need no setup.
-- **iOS signing**: the **Apple Development** cert is imported into a temporary keychain;
-  [fastlane](../fastlane/Fastfile) `sigh --force` regenerates the **development** profile (all
-  registered devices) via the ASC API key and `gym` builds the IPA — so newly added tester
-  devices need no manual profile work.
+- **iOS signing**: the environment's cert is imported into a temporary keychain — Apple
+  Development on `develop`, Apple Distribution on `main`. [fastlane](../fastlane/Fastfile)
+  `sigh --force` regenerates the profile(s) via the ASC API key so every registered device
+  is included, then `gym` builds. Both lanes emit `ipa_path` pointing at the
+  App Distribution-installable IPA, which is what lets the Firebase step be shared.
 - **iOS distribution**: the Android job uploads with the `wzieba` Firebase action, but that's a
   Docker *container* action (Linux-only), so the macOS iOS job uploads with the **Firebase CLI**
   (`firebase appdistribution:distribute`, same service-account JSON) instead.
@@ -333,11 +466,19 @@ api_key)`. Register the `bzh.aee.vente` App ID (with the entitlement) first.
 
 ## Troubleshooting
 
-- **iOS `sigh` can't create the profile** — the App ID `bzh.aee.vente.dev` isn't registered
-  (with the `proximity-reader` entitlement), or the ASC API key lacks the **App Manager** role.
-- **iOS build fails signing / cert not found** — the environment's `IOS_CERT_BASE64`/`IOS_CERT_PASSWORD` wrong,
-  or the `.p12` holds a Distribution cert instead of an **Apple Development** cert (develop
-  uses development signing), or the cert was revoked.
+- **iOS `sigh` can't create the profile** — the branch's App ID (`bzh.aee.vente.dev` on
+  develop, `bzh.aee.vente` on main) isn't registered with the `proximity-reader` entitlement,
+  or the ASC API key lacks the **App Manager** role.
+- **iOS build fails signing / cert not found** — the environment's `IOS_CERT_BASE64`/`IOS_CERT_PASSWORD`
+  wrong, or the `.p12` holds the wrong *type*: `develop` needs **Apple Development**,
+  `production` needs **Apple Distribution**. Or the cert was revoked.
+- **Play upload 403 / "app not found"** — the app has no manually-uploaded first release
+  (4.5), or the service account's Play Console invite hasn't propagated yet.
+- **Play "version code already used"** — `versionCode` is `github.run_number`, shared by both
+  branches; a manual upload that consumed a higher number makes the next runs collide until
+  `run_number` passes it.
+- **TestFlight upload succeeds, build never appears** — Apple is still processing; the lane
+  sets `skip_waiting_for_build_processing`, so the workflow won't wait for it.
 - **App installs but won't open (iOS)** — the tester's device wasn't registered before the
   build. Accept the Firebase invite, then re-run the workflow so `sigh` bakes it in.
 - **Firebase "group does not exist"** — create the `testers` group (or set

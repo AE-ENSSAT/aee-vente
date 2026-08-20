@@ -1,6 +1,7 @@
 # Builds signed RELEASE artifacts for both platforms and ships them per branch:
-#   - push to `develop` → Firebase App Distribution (internal testers)   [working]
-#   - push to `main`    → App Store / Google Play                        [TODO — stubbed]
+#   - push to `develop` → Firebase App Distribution (internal testers)
+#   - push to `main`    → Google Play (production, as a DRAFT release) + TestFlight,
+#                         and Firebase too, so testers get the production build as well
 #
 # Runs entirely on FREE, standard GitHub-hosted runners (ubuntu + macOS are free and
 # unlimited on public repos). ios/ and android/ are gitignored (Expo CNG), so each job
@@ -21,7 +22,7 @@ concurrency:
 jobs:
     android:
         runs-on: ubuntu-latest
-        # develop → the `development` environment, main → `production`. Each holds its own
+        # develop → the `develop` environment, main → `production`. Each holds its own
         # copy of the signing/SumUp secrets under the SAME names, and GitHub refuses a run
         # whose branch isn't allowed by that environment's deployment-branch policy.
         environment: ${{ github.ref_name == 'main' && 'production' || 'develop' }}
@@ -45,7 +46,7 @@ jobs:
             ANDROID_NDK_VERSION: 27.3.13750724
             # develop → `.dev` app identity (bzh.aee.vente.dev); main → production id.
             APP_VARIANT: ${{ github.ref_name == 'develop' && 'dev' || '' }}
-            # Each environment holds its own keystore: development signs Firebase test
+            # Each environment holds its own keystore: develop signs Firebase test
             # builds, production holds the Play upload key.
             ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
             # Consumed by plugin/withAndroidSigning.js via Gradle properties.
@@ -87,17 +88,24 @@ jobs:
             - name: Prebuild (Android)
               run: bunx expo prebuild --platform android --clean --no-install
 
+            # Guarded: an unset secret would otherwise write an empty keystore and fail
+            # much later inside Gradle as "keystore was tampered with", which reads like a
+            # corrupt key rather than a missing environment secret.
             - name: Decode upload keystore
-              run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload.keystore
+              run: |
+                  if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+                      echo "::error::ANDROID_KEYSTORE_BASE64 is empty — set it in the '${{ github.ref_name == 'main' && 'production' || 'develop' }}' environment (docs/CI.md)."
+                      exit 1
+                  fi
+                  echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload.keystore
 
-            # --- develop: build an APK and ship it to Firebase ------------------------
+            # --- both branches: an APK for Firebase ------------------------------------
+            # Play takes the AAB below; App Distribution takes an APK, so main builds both.
             - name: Assemble release APK
-              if: github.ref_name == 'develop'
               working-directory: android
               run: ./gradlew :app:assembleRelease --no-daemon --build-cache
 
             - name: Upload APK artifact
-              if: github.ref_name == 'develop'
               uses: actions/upload-artifact@v4
               with:
                   name: aee-vente-android-apk
@@ -105,9 +113,9 @@ jobs:
                   if-no-files-found: error
 
             # Distribute via the Firebase CLI (same as the iOS job) so both platforms
-            # behave identically — notably, no auto-generated release notes.
+            # behave identically — notably, no auto-generated release notes. FIREBASE_APP_ID
+            # comes from the environment, so each branch lands in its own Firebase app.
             - name: Distribute to Firebase App Distribution
-              if: github.ref_name == 'develop'
               env:
                   FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
                   FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -121,7 +129,7 @@ jobs:
                       --app "$FIREBASE_APP_ID" \
                       --groups "$FIREBASE_GROUPS"
 
-            # --- main: build an AAB for Google Play (upload is TODO) ------------------
+            # --- main: build an AAB and publish it to Google Play ----------------------
             - name: Bundle release AAB
               if: github.ref_name == 'main'
               working-directory: android
@@ -135,12 +143,19 @@ jobs:
                   path: android/app/build/outputs/bundle/release/app-release.aab
                   if-no-files-found: error
 
+            # status: draft — the release lands in the Play Console awaiting a human's
+            # review-and-roll-out click, so a merge to main can never reach users on its own.
+            # Google refuses API publishing until the app's FIRST release was uploaded by
+            # hand in the console; see docs/CI.md.
             - name: Publish to Google Play
               if: github.ref_name == 'main'
-              run: |
-                  echo "::warning title=Google Play upload not implemented::AAB built but not uploaded."
-                  echo "TODO: upload android/app/build/outputs/bundle/release/app-release.aab to Google Play."
-                  echo "e.g. r0adkll/upload-google-play with a GOOGLE_PLAY_SERVICE_ACCOUNT secret (see docs/CI.md)."
+              uses: r0adkll/upload-google-play@v1
+              with:
+                  serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+                  packageName: bzh.aee.vente
+                  releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+                  track: production
+                  status: draft
 
     ios:
         # macos-15 tops out at Xcode 26.3, whose clang rejects expo-modules-jsi's
@@ -202,53 +217,49 @@ jobs:
             - name: Install JS dependencies
               run: bun install --frozen-lockfile
 
-            # Everything below only runs on develop (→ Firebase). The main → store path is
-            # stubbed; App Store signing/upload is added later (see docs/CI.md).
             - name: Import signing certificate
-              if: github.ref_name == 'develop'
               uses: apple-actions/import-codesign-certs@v3
               with:
-                  # develop → Firebase uses DEVELOPMENT signing, so the `development`
-                  # environment holds an Apple Development cert; `production` will hold
-                  # an Apple Distribution one under the same name.
+                  # Same secret name in both environments, different certificate type:
+                  # `develop` holds an Apple Development cert (development signing),
+                  # `production` an Apple Distribution one.
                   p12-file-base64: ${{ secrets.IOS_CERT_BASE64 }}
                   p12-password: ${{ secrets.IOS_CERT_PASSWORD }}
 
             - name: Prebuild (iOS)
-              if: github.ref_name == 'develop'
               run: bunx expo prebuild --platform ios --clean
 
             - name: Show fastlane version
-              if: github.ref_name == 'develop'
               # fastlane ships preinstalled on GitHub macOS runners; add a Gemfile to pin it.
               run: fastlane --version
 
-            # fastlane regenerates the development profile via the ASC API key — force-refreshed
-            # so it includes every currently-registered device (incl. ones Firebase auto-registers)
-            # — then gym builds the IPA. A new tester device is picked up on the next run with
-            # no manual profile juggling. See fastlane/Fastfile.
-            - name: Build development-signed IPA
-              if: github.ref_name == 'develop'
+            # fastlane regenerates the profiles via the ASC API key — force-refreshed so they
+            # include every currently-registered device (incl. ones Firebase auto-registers)
+            # — then gym builds. `dev` produces one development IPA; `prod` archives once and
+            # exports twice (App Store → TestFlight, ad-hoc → Firebase), uploading to
+            # TestFlight itself. Both lanes set `ipa_path` to the App Distribution-installable
+            # IPA, which is why every step below is branch-agnostic. See fastlane/Fastfile.
+            - name: Build signed IPA
               id: build
               env:
                   ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
                   ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
                   ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
-              run: fastlane ios dev
+              run: fastlane ios ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
+            # Glob rather than the single output: on main the archive also yields the
+            # App Store IPA, worth keeping next to the one testers get.
             - name: Upload IPA artifact
-              if: github.ref_name == 'develop'
               uses: actions/upload-artifact@v4
               with:
                   name: aee-vente-ios-ipa
-                  path: ${{ steps.build.outputs.ipa_path }}
+                  path: ${{ runner.temp }}/*.ipa
                   if-no-files-found: error
 
             # The wzieba action is a Docker *container* action → Linux-only, so it can't run
             # on the macOS runner (unlike the Android job). Upload via the Firebase CLI
             # instead, authenticating with the same service-account JSON.
             - name: Distribute to Firebase App Distribution
-              if: github.ref_name == 'develop'
               env:
                   FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID_IOS }}
                   FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -261,13 +272,3 @@ jobs:
                   firebase appdistribution:distribute "$IPA_PATH" \
                       --app "$FIREBASE_APP_ID" \
                       --groups "$FIREBASE_GROUPS"
-
-            # --- main: export for the App Store and upload (upload is TODO) -----------
-            - name: Publish to App Store Connect
-              if: github.ref_name == 'main'
-              run: |
-                  echo "::warning title=App Store upload not implemented::Archive built but not exported/uploaded."
-                  echo "TODO for App Store: add an App Store distribution provisioning profile + an"
-                  echo "App Store Connect API key, then export the archive at $RUNNER_TEMP/app.xcarchive"
-                  echo "with ExportOptions method 'app-store-connect' and upload the IPA via"
-                  echo "'xcrun altool --upload-app' (or apple-actions/upload-testflight-build). See docs/CI.md."
