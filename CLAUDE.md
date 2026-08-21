@@ -115,10 +115,10 @@ resumed at start-up skips it;
   [ProductTile](src/presentation/components/ProductTile.tsx) shows its basket quantity as a
   [CountBadge](src/presentation/components/CountBadge.tsx) — the same bubble as the basket
   button.
-- **Category carousel** ([GridTabs.tsx](src/presentation/components/GridTabs.tsx)) — a
-  synthetic **"Tout"** pill (all products, deduped) first, then one per grid. The grid is a
-  horizontal **paging `ScrollView`** (one page per tab): tapping a pill pages to it, swiping
-  the grid selects the pill — both keep `selectedId` in sync and centre the active pill.
+- **Category carousel** ([GridTabs.tsx](src/presentation/components/GridTabs.tsx)) — one
+  pill per grid, nothing else. The grid is a horizontal **paging `ScrollView`** (one page per
+  tab): tapping a pill pages to it, swiping the grid selects the pill — both keep
+  `selectedId` in sync and centre the active pill.
 - **Basket** — a floating [BasketFab](src/presentation/components/BasketFab.tsx) opens a
   native bottom sheet ([BasketSheet.tsx](src/presentation/components/BasketSheet.tsx)) built
   on **`@lodev09/react-native-true-sheet`** (detents `[0.7, 1]` — 0.7 default, drag to full

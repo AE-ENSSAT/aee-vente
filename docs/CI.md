@@ -344,11 +344,34 @@ API cannot do for you:
    the AAB artifact from a `main` run, whose Play step will have failed. Accept **Play App
    Signing** here: `aee-prod.jks` becomes the *upload* key and Google holds the real signing
    key.
-2. **Service account**: Google Cloud console → the project behind your Play account →
-   IAM & Admin → Service accounts → **Create**, then **Keys → Add key → JSON**. Back in the
-   Play Console: **Users and permissions → Invite user**, paste the service-account email,
-   grant it *Release to production, exclude devices, and use app signing* on this app only.
-   The JSON file's whole contents → `GOOGLE_PLAY_SERVICE_ACCOUNT`.
+2. **Register the upload key.** Play refuses to finish registering the package until it
+   holds the certificate of the key CI signs with:
+
+   ```bash
+   cd ~/Documents/AEE/environnements/production
+   keytool -export -rfc -keystore aee-prod.jks -alias aee-prod -file upload_certificate.pem
+   ```
+
+   App → **Test and release → Setup → App integrity → Play App Signing**: let Google
+   generate the app signing key and upload `upload_certificate.pem` as the *upload key
+   certificate*. Google then re-signs every download with a key it holds, and `aee-prod.jks`
+   only proves the upload came from you — which is why losing it is recoverable (request an
+   upload-key reset) where losing a self-managed signing key is not.
+3. **Service account.** Either make a dedicated one (Google Cloud console → IAM & Admin →
+   Service accounts → **Create** → **Keys → Add key → JSON**) or reuse the Firebase one —
+   same JSON format, but Firebase grants it nothing on Play. Whichever you use, both of
+   these must be true, and they live in different consoles:
+   - **Google Play Android Developer API enabled** in the project that owns the key
+     (Cloud console → APIs & Services → Library). Its absence 403s in a way that reads like
+     a missing Play permission, which sends you looking in the wrong console.
+   - **Invited in Play Console → Users and permissions** by its `client_email`, scoped to
+     this app, with *View app information*, *Manage testing releases*, and *Release to
+     production, exclude devices, and use app signing* (the workflow targets the production
+     track). Service accounts get no invite email; the grant is live on save.
+
+   The JSON file's whole contents → `GOOGLE_PLAY_SERVICE_ACCOUNT`. It may live at repository
+   level — a job with `environment:` still reads repository secrets; environment secrets
+   only *override* same-named ones.
 
 > Permission changes take a few minutes to reach the API; a first run right after inviting
 > the account can still 403.
