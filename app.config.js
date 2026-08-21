@@ -35,6 +35,9 @@ module.exports = () => ({
 				// prebuild would leave it as the space-stripped target name ("AEEVente").
 				CFBundleName: APP_NAME,
 				NSBluetoothAlwaysUsageDescription: `${APP_NAME} uses Bluetooth to connect to the card reader.`,
+				// SumUpSDK links AVCaptureDevice, so App Store validation demands this string
+				// (ITMS-90683) even though nothing in the app opens the camera itself.
+				NSCameraUsageDescription: `${APP_NAME} uses the camera when the payment SDK scans a card or QR code.`,
 				NSLocationWhenInUseUsageDescription: `${APP_NAME} needs your location to accept card payments securely.`,
 				// Tap to Pay needs A12+ (checklist req 1.3). This also blocks pre-A12 iPhones
 				// that could still use the Bluetooth reader — drop the key to support them.
